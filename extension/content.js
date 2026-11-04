@@ -122,10 +122,10 @@
         let withImg = 0, withNum = 0, area = 0, multi = 0;
         for (const c of cards) {
           // 카드 하나에 가격이 여러 개면 상품 여러 개를 묶은 '줄'이에요 (무신사처럼 줄 단위로 그리는 격자)
-          if ((c.innerText.match(PRICE_G) || []).length >= 3) multi++;
+          if ((c.innerText.match(PRICE_G) || []).length + (c.innerText.match(MAN_G) || []).length >= 3) multi++;
           if (c.querySelector('img') || /background-image/.test(c.innerHTML.slice(0, 3000))) withImg++;
           const t = c.innerText;
-          if (PRICE_RE.test(t) || /\d\.\d|\d+%|\d{1,2}:\d{2}/.test(t)) withNum++;
+          if (PRICE_RE.test(t) || MAN_RE.test(t) || /\d\.\d|\d+%|\d{1,2}:\d{2}/.test(t)) withNum++;
           const r = c.getBoundingClientRect();
           area += Math.min(r.width * r.height, 400000);
         }
@@ -149,6 +149,8 @@
     // 화면 위에서 아래 순서로 정렬
     return chosen.flatMap((g) => g.cards).sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
   }
+
+  const cardEls = new Map(); // 줄 id → 원래 페이지의 카드 (주소 없는 카드를 대신 누를 때)
 
   // ---------- 2. 카드 하나에서 값 읽기 ----------
   function isStrike(el) {
@@ -174,11 +176,18 @@
   }
 
   function pickLink(card) {
-    const a = card.tagName === 'A' ? card : (card.closest('a[href]') || card.querySelector('a[href]'));
+    // 카드 안 링크가 여럿이면(BMW '내 차량 만들기 · 모델 정보 · 시승 신청') 사진·제목을 감싼 링크, 그다음 '정보·상세' 링크를 써요
+    const links = card.tagName === 'A' ? [] : [...card.querySelectorAll('a[href]')];
+    const a = card.tagName === 'A' ? card : (card.closest('a[href]') || (links.length > 1 && (links.find((x) => x.querySelector('img,h1,h2,h3,h4,[class*="title" i],[class*="name" i]'))
+      || links.find((x) => /모델\s*정보|상세|자세히|details?|learn more|overview|more info/i.test(norm(x.textContent))))) || links[0]);
     if (!a) return null;
     const h = a.getAttribute('href') || '';
     if (!h || h.startsWith('javascript') || h === '#') return null;
-    try { return new URL(h, location.href).href; } catch { return null; }
+    try {
+      const u = new URL(h, location.href);
+      if (u.origin + u.pathname + u.search === location.origin + location.pathname + location.search) return null;
+      return u.href;
+    } catch { return null; }
   }
 
   function parseDate(text) {
@@ -239,6 +248,62 @@
     if ((m = t.match(/(★+)(☆*)/)) && m[1].length + m[2].length === 5) return m[1].length;
     return null;
   }
+
+  // 중고차·부동산 가격: '530 만원', '1억 2,500만원', '3억원'
+  const MAN_RE = /(?:(\d+)\s*억\s*)?(\d{1,3}(?:,\d{3})+|\d{1,5})\s*만\s*원|(\d+)\s*억\s*원/;
+  const MAN_G = new RegExp(MAN_RE.source, 'g');
+
+  // 중고차 정보: 연식·주행거리·연료·지역·변속기. 주행거리(km)와 연식이나 연료가 함께 있어야 차로 봐요.
+  const CAR_FUEL = /가솔린\s*\+\s*전기|가솔린\s*\/\s*LPG|가솔린|디젤|휘발유|경유|LPG|LPi|하이브리드|전기|수소|plug-in hybrid|hybrid|gasoline|petrol|diesel|electric|\b(?:P?HEV|TDI|CRDi|dCi|EV)\b/i; // 모델 이름의 'HEV', 'TDI', 'EV'도 연료로 봐요
+  const CAR_REGION = /(?:^|[\s·|,(])(서울|경기|인천|부산|대구|광주|대전|울산|세종|강원|충북|충남|전북|전남|경북|경남|제주)(?=$|[\s·|,)])/;
+  const yy = (y) => (y.length === 4 ? y : (+y > (new Date().getFullYear() % 100) + 1 ? '19' : '20') + y);
+  function carInfo(root, text) {
+    // 주행거리만: 신차 소개의 '501km 1회충전 최대주행', '10년/20만km 보증', 연비는 빼요
+    const km = [...text.matchAll(/(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*(만\s*)?(?:km|㎞)(?![a-z/]|\s*\/)/gi)] // 연비 '10.8 km/ℓ', 'km/h'는 빼요
+      .find((m) => !/충전|주행\s*가능|최대|항속|\/\s*$/i.test(text.slice(Math.max(0, m.index - 12), m.index))
+        && !/^\s*(보증|1\s*회|주행\s*가능|충전|range|per\b)/i.test(text.slice(m.index + m[0].length, m.index + m[0].length + 10)));
+    if (!km) return null;
+    let year = '', m;
+    if ((m = text.match(/(?:^|\D)(\d{2})\s*\/\s*(\d{1,2})\s*식/)) || (m = text.match(/((?:19|20)?\d{2})\s*년\s*(\d{1,2})\s*월\s*(?:식|형)?/))) year = `${yy(m[1])}.${m[2].padStart(2, '0')}`;
+    else if ((m = text.match(/((?:19|20)?\d{2})\s*년\s*[식형]/)) || (m = text.match(/(?:^|\s)((?:19|20)\d{2})\s+[A-Z][a-zA-Z]/))) year = yy(m[1]);
+    const fuel = (text.match(CAR_FUEL) || [''])[0];
+    if (!year && !fuel) return null;
+    const regEl = [...root.querySelectorAll('[class*="region" i],[class*="location" i],[class*="area" i],[class*="addr" i],.lo,[class*="local" i]')].map((e) => norm(e.textContent).replace(/^[·|,\s]+/, '')).find((t) => t.length >= 2 && t.length <= 12);
+    const region = (text.match(CAR_REGION) || [])[1] || regEl || '';
+    const trans = ((text.match(/(?<![가-힣])(오토|수동)(?![가-힣])|\b(automatic|manual|CVT|DCT)\b/i) || [])[0]) || '';
+    const note = [...new Set(text.match(/무사고|단순\s*교환|보증|인증\s*중고차|진단|리스\s*승계|헛걸음\s*보상|홈\s*서비스|환불\s*(?:보장|가능)/g) || [])].slice(0, 3);
+    return { year, km: num(km[1]) * (km[2] ? 10000 : 1), fuel, region, trans, note };
+  }
+  // 채용 공고: 경력·학력·고용 형태 중 둘 이상이 보이면 공고로 봐요
+  function jobInfo(text) {
+    // 구체적인 것부터 ('경력 5~10년'이 제목 속 '경력'보다 먼저)
+    const career = ([/경력\s*\d+\s*(?:[~-]\s*\d+\s*)?년\s*[↑이상]*|경력\s*\d+\s*년?\s*이상/, /경력\s*무관|신입\s*[·/]\s*경력/, /신입|new\s*grad|entry[- ]level|\d+\+?\s*years?/i, /경력/]
+      .map((re) => text.match(re)).find(Boolean) || [''])[0];
+    const edu = (text.match(/학력\s*무관|고졸\s*↑?|초대졸\s*↑?|대졸\s*\(?\s*[24]년\s*\)?\s*↑?|대졸\s*↑?|석사\s*↑?|박사\s*↑?|고등학교\s*졸업|대학(교)?\s*졸업/) || [''])[0];
+    const type = (text.match(/정규직|계약직|전환형\s*인턴|인턴|파견직|프리랜서|아르바이트|위촉직|full[- ]time|part[- ]time|contract|internship/i) || [''])[0];
+    const due0 = /~\s*\d{1,2}\/\d{1,2}\s*\(|\d{1,2}\/\d{1,2}\s*\([월화수목금토일]\)\s*마감|D\s*-\s*\d+|상시\s*채용|채용\s*시\s*마감|오늘\s*마감|내일\s*마감/.test(text);
+    const apply = /즉시\s*지원|홈페이지\s*지원|입사\s*지원|간편\s*지원|easy apply/i.test(text);
+    // '경력 3-10년'처럼 숫자까지 있는 경력은 그것만으로도 공고예요 (원티드는 학력·형태를 목록에 안 보여줘요)
+    const strong = /경력\s*\d|경력\s*무관|신입\s*[·/]\s*경력/.test(career);
+    if (!(career || edu) || (!strong && [career, edu, type, due0, apply].filter(Boolean).length < 2)) return null;
+    const loc = (text.match(/(?:^|[\s·|,(])((?:서울|경기|인천|부산|대구|광주|대전|울산|세종|강원|충북|충남|전북|전남|경북|경남|제주|전국|해외)(?:\s*(?:전체|[가-힣]{1,4}(?:시|구|군)))?)/) || [])[1] || '';
+    const pay = (text.match(/(?:연봉|월급|시급|일급|급여)\s*:?\s*[\d,]+\s*(?:~\s*[\d,]+\s*)?만?\s*원?(?:\s*이상)?|면접\s*후\s*결정|회사\s*내규에?\s*따름/) || [''])[0];
+    const due = (text.match(/~\s*\d{1,2}\/\d{1,2}\s*\([월화수목금토일]\)|\d{1,2}\/\d{1,2}\s*\([월화수목금토일]\)(?=\s*마감)|~\s*\d{1,2}\.\d{1,2}|D\s*-\s*\d+|상시\s*채용|채용\s*시\s*마감|오늘\s*마감|내일\s*마감|마감\s*임박/) || [''])[0];
+    return { career: norm(career), edu: norm(edu), type, loc, pay: norm(pay), due: norm(due).replace(/^~\s*/, '') };
+  }
+  const isJobList = (items) => items.filter((f) => f.job).length >= Math.max(2, items.length * 0.5);
+  // 위장할 때 경력·학력은 짧은 부호로: 신입 N, 경력 C, 무관 -, 학력 고졸 H / 초대졸 A / 대졸 B / 석사 M / 박사 D
+  const jobCareer = (t) => (state.labels === 'real' || !t ? t : /무관/.test(t) ? '-' : /신입.*경력/.test(t) ? 'N/C' : /신입|new|entry/i.test(t) ? 'N' : 'C' + ((t.match(/\d+/) || [''])[0]));
+  const jobEdu = (t) => (state.labels === 'real' || !t ? t : /무관/.test(t) ? '-' : /박사/.test(t) ? 'D' : /석사/.test(t) ? 'M' : /초대졸/.test(t) ? 'A' : /대졸|대학/.test(t) ? 'B' : /고졸|고등/.test(t) ? 'H' : t);
+  const jobType = (t) => (state.labels === 'real' || !t ? t : /정규|full/i.test(t) ? '상시' : /인턴|intern/i.test(t) ? '수습' : /계약|contract|파견|위촉|프리/i.test(t) ? '기간' : '단기');
+  const jobPay = (t) => (state.labels === 'real' || !t ? t : t.replace(/연봉|월급|시급|일급|급여|만\s*원|원|:/g, '').trim() || t);
+
+  // 위장할 때 연료·변속기·비고는 짧은 부호로 써요
+  const FUEL_CODE = [[/하이브리드|hybrid|HEV/i, 'H'], [/전기|electric|^EV$/i, 'E'], [/수소/, 'FC'], [/LPG|LPi/i, 'L'], [/디젤|경유|diesel|TDI|CRDi|dCi/i, 'D'], [/가솔린|휘발유|gasoline|petrol/i, 'G']];
+  const carFuel = (t) => (state.labels === 'real' || !t ? t : (FUEL_CODE.find(([re]) => re.test(t)) || [null, t])[1]);
+  const carTrans = (t) => (state.labels === 'real' || !t ? t : /오토|auto|CVT|DCT/i.test(t) ? 'A' : 'M');
+  const carNote = (n) => (state.labels === 'real' ? n : n.map((x) => (/무사고/.test(x) ? '정상' : /진단|인증/.test(x) ? '검수' : /보증|환불/.test(x) ? '보증' : '')).filter(Boolean)).join(', ');
+  const isCarList = (items) => items.filter((f) => f.car).length >= Math.max(2, items.length * 0.5);
 
   // 배송 종류 이름 (원래 이름, 위장 이름)
   const SHIP_TYPES = [
@@ -305,11 +370,11 @@
 
   // 제목·판매자가 될 수 없는 글 (리뷰 수, 배지 등)
   const NOT_TITLE = /^(리뷰|(일반|공식|인증|브랜드)\s*상품|아이템\s*카드|후기|평점|별점|상품평|구매평|배송|무료\s*배송|배송비|찜|좋아요|쿠폰|광고|AD|Sponsored|품절|세일|특가|오늘\s*드림|오늘\s*출발|내일\s*도착|더\s*보기|자세히|장바구니|바로\s*구매|구매하기|\(?\d)/i;
-  const BADGE_WORD = /^(Skip\s.{0,20}|.{0,10}건너뛰기|본문\s*바로\s*가기|Highly rated|Top rated|New at( \w+)?|Only at( \w+)?|Deal of the day|Clearance|Popular now|Preview seller|Star Seller|Bestseller|Etsy'?s Pick|More like this|Add to cart|게스트\s*선호|슈퍼\s*호스트|Guest\s*favou?rite|Superhost|최다\s*판매|추가\s*구매\s*선택|프라임.{0,10}|More buying choices|Prime.{0,12}|Climate Pledge.*|탄소.{0,6}|관련|Related|후원|후원\s*광고|종합\s*추천|아마존\s*추천|Amazon'?s?\s*Choice|Overall\s*Pick|Limited\s*time\s*deal|기간\s*한정\s*(딜|할인)|새\s*창\s*(에서\s*)?(이동|열기|열림)|opens? in (a )?new (window|tab)|최고|우수|매우\s*좋음|아주\s*좋음|좋음|훌륭함|만족|매우\s*만족|Exceptional|Excellent|Very good|Good|Wonderful|Superb|Fabulous|Pleasant|미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
+  const BADGE_WORD = /^(Skip\s.{0,20}|탄탄한.{0,8}|.{0,10}시행\s*중|.{0,8}(대기업|중견기업|공기업|공공기관|외국계|스타트업)|신입\s*지원\s*가능|경력\s*지원\s*가능|오늘\s*마감.*|내일\s*마감.*|마감\s*임박.*|믿고\s*보는.*|스크랩|인기\s*있는|인기\s*공고|추천\s*공고|급구|헤드\s*헌팅|관심\s*기업.*|진단\s*\+?|믿고|사진\s*우대|우대\s*등록|헛걸음\s*보상|홈\s*서비스|성능\s*기록(부)?|집앞\s*배송|환불\s*가능|무사고|.{0,10}건너뛰기|본문\s*바로\s*가기|Highly rated|Top rated|New at( \w+)?|Only at( \w+)?|Deal of the day|Clearance|Popular now|Preview seller|Star Seller|Bestseller|Etsy'?s Pick|More like this|Add to cart|게스트\s*선호|슈퍼\s*호스트|Guest\s*favou?rite|Superhost|최다\s*판매|추가\s*구매\s*선택|프라임.{0,10}|More buying choices|Prime.{0,12}|Climate Pledge.*|탄소.{0,6}|관련|Related|후원|후원\s*광고|종합\s*추천|아마존\s*추천|Amazon'?s?\s*Choice|Overall\s*Pick|Limited\s*time\s*deal|기간\s*한정\s*(딜|할인)|새\s*창\s*(에서\s*)?(이동|열기|열림)|opens? in (a )?new (window|tab)|최고|우수|매우\s*좋음|아주\s*좋음|좋음|훌륭함|만족|매우\s*만족|Exceptional|Excellent|Very good|Good|Wonderful|Superb|Fabulous|Pleasant|미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
 
   // 줄 대부분이 같은 보낸이('겨울준비')면 그건 기획전 이름이에요. 그 줄들은 다음 짧은 줄(브랜드)을 써요.
   function fixSenders(items) {
-    if (items.length < 6) return items;
+    if (items.length < 6 || isCarList(items)) return items;
     const cnt = {};
     for (const f of items) cnt[f.sender] = (cnt[f.sender] || 0) + 1;
     for (const [s, n] of Object.entries(cnt)) {
@@ -347,6 +412,23 @@
       if (v && (cur !== '원' || v >= 100)) prices.push({ v, cur, strike: isStrike(el) || origLab, sale: saleLab && !origLab, per: ship || /^(쿠폰|할인\s*쿠폰|적립|추가\s*할인|캐시|포인트|off\b)/i.test((t.slice(t.indexOf(m[0]) + m[0].length) || priceAfter(el)).trim()) || /적립|쿠폰\s*할인\s*금액|캐시|포인트|\/\s*(oz|ct|count|unit)|per\s|\d+\s*(g|ml|개)\s*당/i.test(t + ' ' + lab) });
       if (prices.length > 12) break;
     }
+    // 차 카드·차 상세에서는 만원 단위 가격이 차 값이에요. '448,609원'(보험 처리 금액) 같은 원 단위 숫자보다 먼저 봐요.
+    const isCar = !!carInfo(root, text);
+    if (!prices.length || isCar) {
+      // 만원 단위 가격 (엔카 '530 만원'). '월 35만원'(할부·렌트), 옵션 값, 쿠폰은 빼요.
+      const man = [];
+      for (const el of root.querySelectorAll('*')) {
+        const t = norm(el.textContent);
+        if (t.length > 24 || !MAN_RE.test(t)) continue;
+        if ([...el.children].some((c) => MAN_RE.test(norm(c.textContent)))) continue;
+        const mm = t.match(MAN_RE);
+        const v = (num(mm[1] || mm[3] || 0) || 0) * 1e8 + (mm[2] ? num(mm[2]) * 1e4 : 0);
+        const lab = (t.replace(mm[0], ' ') + ' ' + priceLabel(el)).trim();
+        if (v) man.push({ v, cur: '원', strike: isStrike(el) || /신차\s*가|출고\s*가|정상\s*가|이전\s*가격/.test(lab), sale: /할인|판매/.test(lab), per: /월\s|월$|^월|할부|렌트|리스|보증금|세금|이전비|수수료|쿠폰|적립|인하|옵션|패키지|피해|보험|수리/.test(lab) });
+        if (man.length > 12) break;
+      }
+      if (man.some((p) => !p.per)) prices.splice(0, prices.length, ...man);
+    }
     if (!prices.length) {
       // '원' 글자 없이 숫자만 있는 사이트(롯데ON '최종가 143,100'): 이름표나 가격 칸 이름(class)으로 찾아요.
       const krw = /[가-힣]/.test(text);
@@ -365,7 +447,7 @@
       // 29CM '32% 66,550': 할인율 바로 뒤 숫자가 할인된 가격이에요.
       if (!prices.length && krw && (m0 = text.match(/\d{1,2}\s*%\s+(\d{1,3}(?:,\d{3})+)(?!\s*(?:개|건|명|점|%|원|\)))/))) prices.push({ v: num(m0[1]), cur: '원', strike: false, sale: true, per: false });
     }
-    const real = prices.filter((p) => !p.strike && !p.per).sort((a, b) => b.sale - a.sale);
+    const real = prices.filter((p) => !p.strike && !p.per).sort((a, b) => b.sale - a.sale || (isCar ? b.v - a.v : 0));
     if (real.length) { f.price = real[0].v; f.cur = real[0].cur; }
     else {
       // 모두 '원래 가격'처럼 보이면 가장 싼 것을 지금 가격으로
@@ -456,7 +538,8 @@
     const add = (t, s) => { t = norm(t).replace(/^[,\s·|:]+/, ''); if (t) cand.push({ t, s }); };
     root.querySelectorAll('h1,h2,h3,h4,h5').forEach((e) => add(e.textContent, 3));
     // 객실·옵션 이름('스탠다드 트윈룸')보다 숙소·상품 이름이 먼저예요
-    root.querySelectorAll('[class*="title" i],[class*="name" i],[class*="tit" i]').forEach((e) => add(e.textContent, /room|option|variant|sku|plan|객실/i.test(String(e.className)) ? 0.8 : 2));
+    // 이름 칸이 분명하면(class에 title·name) '넥쏘'처럼 두 글자 이름도 받아요
+    root.querySelectorAll('[class*="title" i],[class*="name" i],[class*="tit" i]').forEach((e) => add(e.textContent, /room|option|variant|sku|plan|객실/i.test(String(e.className)) ? 0.8 : /(^|[\s_-])(item|product|goods|car|model|prd)?[_-]?(title|name|tit)([\s_-]|$)/i.test(String(e.className)) ? 2.2 : 2));
     root.querySelectorAll('[data-testid*="name" i]').forEach((e) => add(e.textContent, 3));
     root.querySelectorAll('[data-testid*="title" i]').forEach((e) => add(e.textContent, 2.5));
     root.querySelectorAll('strong').forEach((e) => add(e.textContent, 1));
@@ -464,18 +547,24 @@
     root.querySelectorAll('a[href]').forEach((e) => { if (!e.querySelector('img')) add(e.textContent, 0.5); });
     // 포스터 그림의 설명은 거의 늘 작품 이름이에요 (메가박스)
     root.querySelectorAll('img[alt]').forEach((e) => add(e.alt, /poster|포스터/i.test(String(e.className) + ' ' + String(e.parentElement?.className || '')) ? 3 : 2));
+    // 배지 칸의 글('진단+믿고')은 제목이 아니에요
+    const badgeTxt = new Set([...root.querySelectorAll('[class*="badge" i],[class*="flag" i],[class*="sticker" i]')].map((e) => norm(e.textContent)).filter((t) => t.length <= 15));
     const good = cand
-      .filter(({ t, s }) => t.length >= (s >= 3 ? 2 : 4) && t.length <= 140 && !(PRICE_RE.test(t) && t.length < 25) && !/^\d/.test(t) && !NOT_TITLE.test(t))
+      .filter(({ t }) => !badgeTxt.has(t))
+      .filter(({ t, s }) => t.length >= (s >= 2.2 ? 2 : 4) && t.length <= 140 && !(PRICE_RE.test(t) && t.length < 25) && !/^\d/.test(t) && !NOT_TITLE.test(t))
       .filter(({ t }) => !/^[\[(【][^\])】]*[\])】]$/.test(t)) // '[국내도서]' 같은 말머리만 있는 글
       .filter(({ t }) => !/^\S{0,8}\s?(아이템|상품)\s*카드$/.test(t))
       .filter(({ t }) => !/\d+\s*장\s*중\s*\d+\s*번째|^(photo|image)?\s*\d+\s*(of|\/)\s*\d+/i.test(t))
       .filter(({ t }) => !/^((hotel|room|product|item|main|cover|thumb)\s*)?(overview\s*)?(picture|image|photo|img|thumbnail)$|^(상품|대표|숙소|객실)?\s*(이미지|사진|썸네일)$/i.test(t)) // G마켓 '스마일상품 아이템카드' (화면 낭독용 이름)
-      .map(({ t, s }) => ({ t, s: s - (/^(공연기간|관람기간|기간|장소|일시|위치|주소|출발|도착)/.test(t) || /~/.test(t) ? 5 : 0)
+      .map(({ t, s }) => ({ t, s: s - (/^(공연기간|관람기간|기간|장소|일시|위치|주소|출발|도착)/.test(t) || (/~/.test(t) && !/\d\s*~\s*\d+\s*년/.test(t)) ? 5 : 0) // '(1~3년)' 경력 범위는 날짜 범위가 아니에요
         // 설명 문장('…산정됩니다.', 'Prices include taxes.')은 제목이 아니에요 (아고다 말풍선)
         - (t.length > 25 && /(니다|어요|해요|세요)\.?$|[a-z]\.$/.test(t) ? 6 : 0)
         - (PRICE_RE.test(t) ? 2 : 0)
-        - (/(버튼|button|아이콘|icon|로고|logo)$/i.test(t) ? 6 : 0) }));
-    if (good.length) f.title = good.sort((a, b) => b.s - a.s || b.t.length - a.t.length)[0].t;
+        - (/(버튼|button|아이콘|icon|로고|logo)$/i.test(t) ? 6 : 0)
+        // '경기 성남시 · 경력 5년 이상' 같은 공고 조건 줄은 제목이 아니에요 (원티드)
+        - (/·\s*(경력|신입)|^(경력|신입)\s*[\d·/]|경력\s*\d+\s*[~-]?\s*\d*\s*년\s*(이상|↑)?$/.test(t) ? 3 : 0) }));
+    let titleScore = 0;
+    if (good.length) { const best = good.sort((a, b) => b.s - a.s || b.t.length - a.t.length)[0]; f.title = best.t; titleScore = best.s; }
     if (!f.title) {
       const lines = (root.innerText || '').split('\n').map(norm).filter((t) => t.length >= 4 && !(PRICE_RE.test(t) && t.length < 25) && !NOT_TITLE.test(t) && !BADGE_WORD.test(t)
         && !(t.length > 25 && /(니다|어요|해요|세요)\.?$|[a-z]\.$/.test(t)) && !/^tooltip$/i.test(t));
@@ -490,17 +579,24 @@
     const senderEl = root.querySelector('[class*="brand" i],[class*="seller" i],[class*="store" i],[class*="mall" i],[class*="shop" i],[class*="location" i],[class*="area" i],[class*="place" i],[class*="venue" i],[class*="theater" i],[class*="airline" i],[class*="region" i]');
     // G마켓 '공식상품', '인증상품' 같은 화면 낭독용 말머리는 떼요
     const unbadge = (t) => t && t.replace(/^(?:[가-힣]{2,5}\s*상품(?=\s*\S|$)\s*)+/, '').replace(/^(스토어|판매자|상점|셀러|브랜드)(명|\s*이름)\s*:?\s*/, '').replace(/\s*(지도에서\s*(표시|보기)|지도\s*보기|show on map|view on map)$/i, '');
-    let st = senderEl && unbadge(norm(senderEl.textContent));
+    // 채용 공고는 회사 이름 칸(corp·company)이 보낸이예요
+    // 회사 칸이 여럿이면(사람인 'area_corp' 안에 'corp_name', '관심기업 등록' 버튼) 이름 칸을 먼저, 버튼은 빼요
+    const corpEl = [...root.querySelectorAll('[class*="corp" i],[class*="company" i],[class*="employer" i],[data-testid*="company" i]')]
+      .filter((e) => { const t = norm(e.textContent); return t.length >= 2 && t.length <= 30 && !e.matches('button,[class*="btn" i]') && !/관심\s*기업|기업\s*정보|팔로우|follow|공고\s*모아|더\s*보기/i.test(t); })
+      .sort((a, b) => /name/i.test(String(b.className)) - /name/i.test(String(a.className)))[0];
+    let st = (corpEl && norm(corpEl.textContent).length <= 30 && unbadge(norm(corpEl.textContent))) || (senderEl && unbadge(norm(senderEl.textContent)));
     const okSender = (s) => s && s.length >= 2 && s.length <= 16 && s !== f.title && !/\d.*(원|%)|[%₩$€£¥]|^\d/.test(s) && !NOT_TITLE.test(s) && !BADGE_WORD.test(s)
       // 화면 낭독용 칸 이름 ('상품명', '가격정보', '판매가', '할인율')
       && !/^[,+·|]|[:：]$/.test(s) && !/^(제한된\s*시간|한정\s*시간|일반\s*가격|정가|가격)/.test(s) && !/색상|패턴|제품\s*페이지|colors?|options?|more\b/i.test(s)
-      && !/찜\s*하기|순위|^찜$|wishlist|add to (list|favorites)/i.test(s)
+      && !/찜\s*하기|순위|^찜$|wishlist|add to (list|favorites)|보기\s*(\(\d+\))?$/i.test(s)
       && !/번째\s*사진|장\s*중|수수료|한마디|신규\s*(숙소|등록)|무료\s*취소|취소\s*가능|free cancellation|new listing/i.test(s)
       && !/^(구매|판매|구매\s*수|판매\s*수|.*평점|상품명|제품명|가격\s*정보|판매\s*가|할인\s*율|할인률|원가|정보|최저가|.*최저가|.*정보)$/.test(s);
     // data-testid 제목 칸 (에어비앤비 '애월읍의 펜션'): 이름 칸을 제목으로 썼으면 이쪽이 보낸이 자리예요
     if (!okSender(st)) { const tt = norm(root.querySelector('[data-testid*="title" i]')?.textContent || ''); if (okSender(tt)) st = tt; }
     // 카드 맨 앞 짧은 줄이 브랜드인 사이트가 많아요 (오늘의집 '먼데이하우스', 무신사 '아워호프'). 배지 글은 건너뛰어요.
-    const btnText = new Set([...root.querySelectorAll('button,[role="button"],[class*="badge" i],[class*="label" i],[class*="tag" i],[class*="btn" i],[class*="flag" i]')]
+    // 배지 안의 화면 낭독용 글(현대 'N line')도 빼요
+    const btnText = new Set([...root.querySelectorAll('button,[role="button"],[class*="badge" i],[class*="label" i],[class*="tag" i],[class*="btn" i],[class*="flag" i],[class*="sr-only" i],[class*="blind" i]')]
+      .flatMap((e) => (/badge|flag|sr-only|blind/i.test(String(e.className || '')) ? [e, ...e.querySelectorAll('*'), ...[...e.childNodes].filter((n) => n.nodeType === 3)] : [e]))
       .map((e) => unbadge(norm(e.textContent))).filter((t) => t && t.length <= 20));
     const shortLines = (root.innerText || '').split('\n').map((t) => unbadge(norm(t))).filter((t) => !btnText.has(t)).filter((t) => t && t.length <= 14 && okSender(t) && !/^[\d.,%()\s:+]+$/.test(t) && !/^tooltip$|\d|배송|도착|출발|할인|쿠폰|적립|혜택|포인트/i.test(t));
     f.sender2 = shortLines[1] || ''; // 첫 줄이 기획전 이름일 때 쓸 다음 줄 ('겨울준비' 다음 '노운베러')
@@ -541,6 +637,42 @@
     if (f.ship != null && f.price != null && f.ship >= f.price) f.ship = null;
     f.soldOut = /품절|매진|마감|예약\s*불가|일시\s*중단|out of stock|sold out|unavailable/i.test(text);
 
+    f.car = carInfo(root, text);
+    f.job = f.car ? null : jobInfo(text);
+    if (f.job) {
+      // 공고에는 가격이 없어요 ('평균연봉 6,000' 같은 숫자를 가격으로 읽지 않게)
+      f.price = null; f.orig = null; f.discount = null;
+      // 제목 자리에 회사 로고 설명(img alt)이 들어왔으면: 그건 회사 이름이고, 공고 제목은 링크 글이에요 (잡코리아)
+      if (!opts.detail && [...root.querySelectorAll('img[alt]')].some((im) => norm(im.alt).length >= 2 && (norm(im.alt).includes(f.title) || f.title.includes(norm(im.alt))))) {
+        const lt = [...root.querySelectorAll('a')].filter((a) => !a.querySelector('img')).map((a) => norm(a.textContent))
+          .find((t) => t.length >= 6 && t !== f.title && !BUY_RE.test(t) && !BADGE_WORD.test(t) && !/지원$|스크랩/.test(t));
+        if (lt) { f.sender = f.title; f.title = lt; }
+      }
+      // 보낸이 칸에 경력·지역 같은 조건이 들어왔으면: 제목 바로 다음 줄이 회사 이름이에요 (잡코리아 '제목 | 회사 | 지역')
+      if (!opts.detail && (!f.sender || [f.job.career, f.job.loc, f.job.type, f.job.edu].some((x) => x && (x === f.sender || f.sender.startsWith(x))) || /경력|신입|마감|지원/.test(f.sender))) {
+        const ls = (root.innerText || '').split('\n').map(norm).filter(Boolean);
+        const nx = ls[ls.indexOf(f.title) + 1];
+        if (ls.includes(f.title) && nx && nx.length <= 30 && !/경력|신입|마감|지원|^\d/.test(nx) && !CAR_REGION.test(' ' + nx)) f.sender = nx;
+      }
+      if (corpEl && norm(corpEl.textContent).length <= 30) f.sender = unbadge(norm(corpEl.textContent)).replace(/\s*(관심기업|기업정보|채용정보|팔로우|follow)$/i, '');
+    }
+    if (f.car && !opts.detail) {
+      // 차 카드는 '제조사 / 모델 / 세부 모델 / 등급'이 여러 줄로 나뉘어 있어요: 연식·주행거리 줄 바로 위의 줄들을 이어 붙여요.
+      const lines = (root.innerText || '').split('\n').map(norm).filter(Boolean);
+      const btnTxt = new Set([...root.querySelectorAll('button,[role="button"],label,[class*="hidden" i],[class*="blind" i]')].map((e) => norm(e.textContent)));
+      const at = lines.findIndex((t) => /\d\s*(km|㎞)|\d\s*식(?![가-힣])|\d{2}\s*\/\s*\d{2}\s*식|\d+\s*년\s*\d*\s*월?\s*[식형]/.test(t));
+      const name = [];
+      for (let i = at - 1; i >= 0 && name.length < 6; i--) {
+        const t = lines[i];
+        if (PRICE_RE.test(t) || MAN_RE.test(t) || BADGE_WORD.test(t) || btnTxt.has(t) || /^(찜|관심|비교|NEW|\d+)$|찜\s*하기|비교\s*함|담기|무료\s*배송|지금\s*사면|타임\s*딜|남은\s*시간|\d+:\d{2}/i.test(t) || t.length > 40) { if (name.length) break; continue; }
+        name.unshift(t);
+      }
+      const nm = name.join(' ');
+      // 이름 칸(class 'tit'·'carName')에서 찾은 제목이면 그대로 둬요 (KB차차차 'KB스타픽 특옵션 · …' 같은 앞 줄이 붙지 않게)
+      if (at > 0 && nm.length >= 4 && titleScore < 2.2 && (nm.length >= f.title.length || nm.includes(f.title))) f.title = nm;
+      // 거래처 칸은 제조사로 맞춰요 (판매 지점·배지 글이 섞이지 않게)
+      f.sender = f.title.split(' ')[0];
+    }
     f.img = pickImage(root);
     f.link = opts.detail ? (DOC.defaultView || window).location.href : pickLink(root);
     f.id = String(hash((f.link || '') + f.title));
@@ -581,7 +713,7 @@
   };
 
   // ---------- 2-1. 상세 페이지 ----------
-  const BUY_RE = /^(바로\s*구매(하기)?|즉시\s*구매(하기)?|지금\s*구매(하기)?|구매하기|장바구니에\s*(추가|담기)|장바구니(\s*담기)?|예약하기|바로\s*예약(하기)?|예매하기|객실\s*선택|좌석\s*선택|예약\s*가능\s*객실\s*보기|선물하기|add to cart|add to basket|add to bag|buy it now|buy now|book now|reserve|select room|see availability)$/i;
+  const BUY_RE = /^(바로\s*구매(하기)?|즉시\s*구매(하기)?|지금\s*구매(하기)?|구매하기|장바구니에\s*(추가|담기)|장바구니(\s*담기)?|예약하기|바로\s*예약(하기)?|예매하기|객실\s*선택|좌석\s*선택|예약\s*가능\s*객실\s*보기|선물하기|판매자\s*문의(하기)?|딜러\s*문의(하기)?|차량\s*문의(하기)?|구매\s*상담(\s*신청)?|상담\s*신청(하기)?|시승\s*신청(하기)?|구매\s*견적(\s*(내기|받기|신청))?|견적\s*(내기|받기|신청|요청)(하기)?|온라인\s*구매|입사\s*지원(하기)?|즉시\s*지원(하기)?|지원\s*하기|홈페이지\s*지원(하기)?|apply( now)?|easy apply|((직영점|매장|전시장|지점)\s*)?방문\s*예약(하기)?|홈\s*서비스\s*(신청|구매)(하기)?|add to cart|add to basket|add to bag|buy it now|buy now|book now|reserve|select room|see availability|contact (the )?(dealer|seller)|request (a )?quote|build (&|and) price|test drive)$/i;
   const visible = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
 
   // 버튼이 상품 카드 목록 안에 있나? (검색 결과 카드마다 '장바구니' 버튼이 있는 사이트가 있어요)
@@ -611,11 +743,27 @@
     }
     return false;
   }
+  // 사이트 꼬리말 안인가? 쿠팡 'prod-buy-footer'처럼 이름만 footer인 구매 칸은 빼요 (페이지 아래쪽 절반에 있을 때만 꼬리말)
+  function inSiteFooter(b) {
+    const f = b.closest('footer,[role="contentinfo"],[class*="footer" i],[id*="footer" i]');
+    if (!f) return false;
+    const win = DOC.defaultView || window;
+    const top = f.getBoundingClientRect().top + (win.scrollY || 0);
+    return top > (DOC.documentElement.scrollHeight || 0) * 0.5;
+  }
   function buyButton() {
+    let cards = null;
+    const inCards = (b) => { if (!cards) { const cs = findCards(); cards = cs.length >= 4 ? cs : []; } return cards.some((c) => c.contains(b)); };
     return [...DOC.querySelectorAll('button,a,input[type="submit"],[role="button"]')]
-      .find((b) => !host?.contains(b) && BUY_RE.test(norm(b.textContent || b.value)) && visible(b) && !inRepeatedCard(b)
+      // '판매자 문의하기'는 norm이 '판매자'를 화면 낭독용 말머리로 보고 떼어내서, 원래 글로도 한 번 더 봐요
+      .find((b) => !host?.contains(b) && (BUY_RE.test(norm(b.textContent || b.value)) || BUY_RE.test(String(b.textContent || b.value || '').replace(/\s+/g, ' ').trim())) && visible(b) && !inRepeatedCard(b)
         // 머리말의 '장바구니' 메뉴 링크는 구매 버튼이 아니에요.
         && !inSiteHeader(b)
+        && !inCards(b)
+        // 넘겨 보는 추천 목록(캐러셀) 안의 버튼도 아니에요 (사람인 추천 공고의 '홈페이지 지원')
+        && !b.closest('[class*="swiper" i],[class*="slick" i],[class*="carousel" i],[class*="owl-" i]')
+        // 꼬리말(사이트 맨 아래 링크 모음)의 '견적 내기'·'구매 상담'도 구매 버튼이 아니에요 (기아)
+        && !inSiteFooter(b)
         && !(b.tagName === 'A' && /cart|basket|장바구니/i.test(b.getAttribute('href') || '') && /^장바구니$/.test(norm(b.textContent)))
         // 목록 위 '전체선택 · 장바구니 · 선물하기' 막대는 고른 상품을 한꺼번에 담는 버튼이에요 (교보문고)
         && !(() => { for (let e = b.parentElement, i = 0; e && i < 4; e = e.parentElement, i++) if (/^전체\s*선택|select all/i.test(norm(e.innerText || ''))) return true; return false; })()
@@ -633,13 +781,26 @@
   function titleElement() {
     // 상품명 글이 들어 있는 가장 안쪽 요소 (없으면 h1)
     const t = pageTitle();
-    const key = t.slice(0, 20);
-    if (key.length >= 6) {
+    // 탭 제목 전체로 못 찾으면 ' - ' 앞부분('더 뉴 그랜저 - Pleos Connect와…' → '더 뉴 그랜저')으로 한 번 더 찾아요
+    // 앞의 '[회사]' 말머리와 끝의 '(D-11)'을 뗀 이름으로도 찾아요 (사람인 '[(주)유비온] AI백엔드 개발 경력(D-11)')
+    let firstHits = null;
+    for (const k of [t, t.split(/\s[-–|:]\s/)[0], t.replace(/^\[[^\]]*\]\s*/, '').replace(/\s*\([^)]*\)\s*$/, '')]) {
+      const key = k.replace(/\s+/g, '').slice(0, 16);
+      if (key.length < (k === t ? 6 : 4)) continue;
       const hits = [...DOC.querySelectorAll('h1,h2,h3,h4,strong,div,span,p')]
-        .filter((e) => !host?.contains(e) && e.children.length <= 3 && norm(e.textContent).includes(key) && visible(e));
-      if (hits.length) return hits.sort((a, b) => norm(a.textContent).length - norm(b.textContent).length)[0];
+        .filter((e) => !host?.contains(e) && e.children.length <= 3 && norm(e.textContent).replace(/\s+/g, '').includes(key) && visible(e));
+      if (!hits.length) continue;
+      hits.sort((a, b) => norm(a.textContent).length - norm(b.textContent).length);
+      // 제목 줄(h1~h3)이 있으면 그걸로, 없으면 다음 이름으로도 찾아본 뒤 가장 짧은 덩어리
+      const hd = hits.find((e) => /^H[1-3]$/.test(e.tagName));
+      if (hd) return hd;
+      firstHits = firstHits || hits;
     }
-    return DOC.querySelector('h1');
+    if (firstHits) return firstHits[0];
+    // 탭 제목이 '차량상세 | K Car'처럼 두루뭉술하면: 머리말 로고 h1보다 이름 칸 제목(h2.carName)을 써요
+    const heads = [...DOC.querySelectorAll('h1,h2')].filter((e) => !host?.contains(e) && visible(e) && !inSiteHeader(e) && norm(e.textContent).length >= 4);
+    const named = (e) => /name|tit|subject|product|goods|item|car/i.test(String(e.className || ''));
+    return heads.find((e) => e.tagName === 'H1' && named(e)) || heads.find((e) => e.tagName === 'H1') || heads.find(named) || DOC.querySelector('h1');
   }
 
   function isDetailPage() {
@@ -653,7 +814,7 @@
     let el = h1;
     for (let i = 0; i < 12 && el && el !== DOC.body; i++) {
       el = el.parentElement;
-      const hasPrice = PRICE_RE.test(el.innerText || '');
+      const hasPrice = PRICE_RE.test(el.innerText || '') || MAN_RE.test(el.innerText || '');
       const hasImg = [...el.querySelectorAll('img')].some((im) => im.getBoundingClientRect().width >= 200);
       if (hasPrice && hasImg) return el;
     }
@@ -698,6 +859,16 @@
     const isDetail = isDetailPage();
     const main = isDetail ? detailRoot() : (DOC.querySelector('main,[role="main"],article') || DOC.body);
     const f = extractFields(main, { detail: true });
+    if (isDetail && f.car) {
+      // 차 상세: 차 값은 '문의·상담' 버튼 바로 곁에 있어요 (옵션 값 '120만원'과 헷갈리지 않게)
+      const bb = buyButton();
+      for (let e = bb?.parentElement, i = 0; e && i < 5; e = e.parentElement, i++) {
+        const mm = norm(e.innerText || '').match(MAN_RE);
+        if (mm && !/월\s*$|할부|렌트|리스/.test(norm(e.innerText || '').slice(0, mm.index))) { f.price = (num(mm[1] || mm[3] || 0) || 0) * 1e8 + (mm[2] ? num(mm[2]) * 1e4 : 0); f.cur = '원'; break; }
+      }
+      // 거래처 칸은 지역, 없으면 제조사로 ('연식', 'LPG' 같은 글이 들어가지 않게)
+      f.sender = f.car.region || f.title.split(' ')[0];
+    }
     // 갤러리: 상품 사진들 → 첨부파일
     f.gallery = [...new Set([...main.querySelectorAll('img')].filter((im) => im.getBoundingClientRect().width >= 60 && im.getBoundingClientRect().height >= 60).map((im) => im.currentSrc || im.src).filter(Boolean))].slice(0, 8);
     // 핵심 내용: 상세 덩어리 안의 짧은 줄 (옵션·배송·위치·일정 등)
@@ -872,6 +1043,8 @@
     '발주내역': '지금 보는 목록', '출고': '주문·배송 목록', '임시': '장바구니', '관심': '찜 목록', '반품': '취소·반품', '요약': '사이트 홈',
     'No': '순서', '거래처': '판매자', '품목': '상품명', '단가': '가격', '할인(%)': '할인율(%)', '가중치': '평점',
     '거래수': '리뷰 수', '출고수': '판매수', '납기': '도착일', '비고': '상품 정보', '운임': '배송비·배송 종류',
+    '기준월': '연식', '누적량': '주행거리(km)', '유형': '연료', '지점': '지역', '방식': '변속기',
+    '등급': '경력', '요건': '학력', '구분': '고용 형태', '보수': '연봉·급여', '기한': '마감일',
     // 결재함
     '새 결재 진행': '사이트 홈', '결재 대기 문서': '지금 보는 목록', '중요 문서': '별표한 상품', '관심 문서': '찜 목록',
     '임시 저장 문서': '장바구니', '기안 문서함': '주문·배송 목록', '반려 문서함': '취소·반품', '전체 문서': '사이트 홈',
@@ -911,10 +1084,10 @@
       return opts.map((o) => ({ label: norm(o.text), on: o.selected, pick: () => { sel.value = o.value; sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true })); } }));
     }
     // 2) 링크·버튼 묶음으로 된 정렬 (숨은 드롭다운 안에 있어도 괜찮아요)
-    const cands = [...document.querySelectorAll('a,button,label,[role="option"],[role="tab"],[role="radio"],[role="menuitem"],[role="menuitemradio"],li')]
-      .filter((e) => !host?.contains(e) && e.children.length <= 4 && norm(e.textContent).length <= 24 && SORT_RE.test(norm(e.textContent)))
-      // li 안에 링크·버튼이 있으면 안쪽 것을 써요
-      .filter((e, _, arr) => !(e.tagName === 'LI' && arr.some((x) => x !== e && e.contains(x))));
+    const cands0 = [...document.querySelectorAll('a,button,label,[role="option"],[role="tab"],[role="radio"],[role="menuitem"],[role="menuitemradio"],li')]
+      .filter((e) => !host?.contains(e) && e.children.length <= 4 && norm(e.textContent).length <= 24 && SORT_RE.test(norm(e.textContent)));
+    // li 안에 링크·버튼이 있으면 안쪽 것을 써요. 셋째 인자(배열)는 옛 라이브러리(prototype.js)가 바꿔 둔 사이트에서 안 넘어와서 쓰지 않아요
+    const cands = cands0.filter((e) => !(e.tagName === 'LI' && cands0.some((x) => x !== e && e.contains(x))));
     const groups = new Map();
     for (const e of cands) {
       const g = e.closest('ul,ol,[role="listbox"],[role="tablist"],[role="radiogroup"],[role="menu"]') || e.parentElement?.parentElement || e.parentElement;
@@ -935,7 +1108,8 @@
       if (shown) out.forEach((o) => { o.on = o.label === norm(shown.textContent); });
     }
     // 여러 메뉴 앞에 붙은 같은 낱말(대개 사이트 이름: '11번가 랭킹순', '11번가 인기순')은 위장할 때 빼요.
-    const firsts = out.map((o) => o.label.split(' ')[0]).filter((w, i, a) => a.indexOf(w) !== i && out.some((o) => o.label.startsWith(w + ' ')));
+    const words = out.map((o) => o.label.split(' ')[0]);
+    const firsts = words.filter((w, i) => words.indexOf(w) !== i && out.some((o) => o.label.startsWith(w + ' ')));
     out.brand = firsts[0] || '';
     return out;
   }
@@ -993,6 +1167,8 @@
       if (f.sales != null) parts.push(`판매 ${count(f.sales, f.salesPlus)}`);
       if (f.date) parts.push(`날짜 ${f.date.getMonth() + 1}/${f.date.getDate()}`);
       if (f.time) parts.push(`시간 ${f.time}`);
+      if (f.job) parts.push([f.job.loc, f.job.career, f.job.edu, f.job.type, f.job.pay, f.job.due && `마감 ${f.job.due}`].filter(Boolean).join(' · '));
+      if (f.car) parts.push([f.car.year && `${f.car.year}식`, f.car.km != null && `${f.car.km.toLocaleString()}km`, f.car.fuel, f.car.trans, f.car.region, ...f.car.note].filter(Boolean).join(' '));
       return parts.join(' · ') || '숫자 정보 없음';
     },
   };
@@ -1114,8 +1290,33 @@
       sidebar: () => '',
       list(items) {
         const cols = ['', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-        const head = ['No', '거래처', '품목', '단가', '운임', '할인(%)', '가중치', '거래수', '출고수', '납기'];
         const weak = weakMode();
+        if (isJobList(items)) {
+          const head = ['No', '거래처', '품목', '지점', '등급', '요건', '구분', '보수', '기한', '비고'];
+          return `<div class="sheet"><div class="fx"><span>fx</span><input value="=COUNTIF(E2:E${items.length + 1},&quot;N*&quot;)" readonly></div>
+          <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:130px"><col><col style="width:96px"><col style="width:70px"><col style="width:56px"><col style="width:56px"><col style="width:90px"><col style="width:84px"><col style="width:60px"></colgroup>
+          <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
+          <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
+          ${items.map((f, i) => { const j = f.job || {}; return `<tr class="${f.soldOut ? 'dim' : ''}" data-id="${f.id}" title="${tip(f)}"><th>${i + 2}</th>
+            <td>${i + 1}</td><td>${esc(f.sender)}</td><td class="item">${thumb(f, 'th s')}${esc(f.title)}</td>
+            <td>${esc(j.loc || '')}</td><td>${esc(jobCareer(j.career) || '')}</td><td>${esc(jobEdu(j.edu) || '')}</td><td>${esc(jobType(j.type) || '')}</td>
+            <td>${esc(jobPay(j.pay) || '')}</td><td>${esc(j.due || (f.date ? ymd(f.date) : ''))}</td><td>${(f.labels || []).includes('ad') ? (state.labels === 'real' ? '광고' : '참조') : ''}</td></tr>`; }).join('')}
+          </tbody></table>${sheetTabs()}</div>`;
+        }
+        if (isCarList(items)) {
+          const head = ['No', '거래처', '품목', '단가', '기준월', '누적량', '유형', '지점', '방식', '비고'];
+          return `<div class="sheet"><div class="fx"><span>fx</span><input value="=AVERAGEIF(G2:G${items.length + 1},&quot;G&quot;,D2:D${items.length + 1})" readonly></div>
+          <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:96px"><col><col style="width:96px"><col style="width:70px"><col style="width:84px"><col style="width:56px"><col style="width:60px"><col style="width:48px"><col style="width:90px"></colgroup>
+          <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
+          <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
+          ${items.map((f, i) => { const c = f.car || { note: [] }; return `<tr class="${f.soldOut ? 'dim' : ''}" data-id="${f.id}" title="${tip(f)}"><th>${i + 2}</th>
+            <td>${i + 1}</td><td>${esc(f.sender)}</td><td class="item">${thumb(f, 'th s')}${esc(f.title)}</td>
+            <td class="n">${f.price != null ? (weak ? won(f.price) : f.price.toLocaleString()) : ''}</td>
+            <td>${esc(c.year || '')}</td><td class="n">${c.km != null ? c.km.toLocaleString() : ''}</td>
+            <td>${esc(carFuel(c.fuel) || '')}</td><td>${esc(c.region || '')}</td><td>${esc(carTrans(c.trans) || '')}</td><td>${esc(carNote(c.note || []))}</td></tr>`; }).join('')}
+          </tbody></table>${sheetTabs()}</div>`;
+        }
+        const head = ['No', '거래처', '품목', '단가', '운임', '할인(%)', '가중치', '거래수', '출고수', '납기'];
         return `<div class="sheet"><div class="fx"><span>fx</span><input value="=SUMPRODUCT(D2:D${items.length + 1},(1-E2:E${items.length + 1}/100))" readonly></div>
           <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:120px"><col><col style="width:90px"><col style="width:96px"><col style="width:66px"><col style="width:62px"><col style="width:74px"><col style="width:74px"><col style="width:96px"></colgroup>
           <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
@@ -1131,7 +1332,10 @@
           </tbody></table>${sheetTabs()}</div>`;
       },
       detail(f) {
-        const rows = [['품목', f.title], ['거래처', f.sender], ['단가', f.price?.toLocaleString()], ['운임', shipCell(f)], ['할인(%)', f.discount], ['가중치', f.rating], ['거래수', f.reviews?.toLocaleString()], ['출고수', f.sales != null ? count(f.sales, f.salesPlus) : ''], ['납기', ymd(f.date)],
+        const c = f.car, j = f.job;
+        const rows = j ? [['품목', f.title], ['거래처', f.sender], ['지점', j.loc], ['등급', jobCareer(j.career)], ['요건', jobEdu(j.edu)], ['구분', jobType(j.type)], ['보수', jobPay(j.pay)], ['기한', j.due || ymd(f.date)],
+          ...factsFor(f).map((p, i) => [`비고${i + 1}`, p])] : c ? [['품목', f.title], ['거래처', f.sender], ['단가', f.price?.toLocaleString()], ['기준월', c.year], ['누적량', c.km?.toLocaleString()], ['유형', carFuel(c.fuel)], ['지점', c.region], ['방식', carTrans(c.trans)], ['비고', carNote(c.note || [])],
+          ...factsFor(f).map((p, i) => [`비고${i + 1}`, p])] : [['품목', f.title], ['거래처', f.sender], ['단가', f.price?.toLocaleString()], ['운임', shipCell(f)], ['할인(%)', f.discount], ['가중치', f.rating], ['거래수', f.reviews?.toLocaleString()], ['출고수', f.sales != null ? count(f.sales, f.salesPlus) : ''], ['납기', ymd(f.date)],
           ...factsFor(f).map((p, i) => [`비고${i + 1}`, p]),
           ...(state.reviews === 'hide' ? [] : (f.reviews_list || [])).map((r, i) => [`의견${i + 1}`, `${r.author} | ${r.rating ?? ''} | ${r.body.join(' ')}`])];
         const g = gallery(f);
@@ -1499,7 +1703,12 @@
     if (row && !e.target.classList.contains('ck')) {
       const id = row.dataset.id;
       const item = state.items.find((x) => x.id === id) || state.detail?.related?.find((x) => x.id === id) || state.starred[id];
-      if (!item?.link) return;
+      if (!item?.link) {
+        // 상세 주소 없이 눌러야 열리는 사이트(K Car): 원래 페이지의 카드 제목을 대신 눌러요
+        const el = cardEls.get(id);
+        if (el?.isConnected) { state.seen[id] = 1; store.set('mmSeen', state.seen); (el.querySelector('[class*="tit" i],[class*="name" i]') || el.querySelector('img') || el).click(); }
+        return;
+      }
       if (e.ctrlKey || e.metaKey) { state.seen[id] = 1; store.set('mmSeen', state.seen); window.open(item.link, '_blank'); return; }
       // 기본: 들어가지 않고 미리보기 팝업. (패널에서 '바로 열기'로 바꿀 수 있어요)
       if (state.rowClick !== 'open') return openPreview(item);
@@ -1566,7 +1775,8 @@
     }
     const cards = findCards();
     const seen = new Set();
-    state.items = fixSenders(cards.map((c) => extractFields(c)).filter((f) => f.title && !seen.has(f.id) && seen.add(f.id)));
+    cardEls.clear();
+    state.items = fixSenders(cards.map((c) => { const f = extractFields(c); cardEls.set(f.id, c); return f; }).filter((f) => f.title && !seen.has(f.id) && seen.add(f.id)));
     state.detail = state.items.length ? null : extractDetail();
     // 이 페이지의 통화 (가장 많이 나온 것)
     const cc = {}; state.items.forEach((f) => f.cur && (cc[f.cur] = (cc[f.cur] || 0) + 1));
@@ -1661,7 +1871,7 @@
   }, true);
 
   // 시험용(확장프로그램이 아닌 곳에 직접 넣었을 때만): 내부를 들여다볼 수 있게
-  if (!hasChrome) window.__mmDebug = { findCards, extractFields, fixSenders, extractDetail, isDetailPage, siteSorts, siteMenu, state };
+  if (!hasChrome) window.__mmDebug = { findCards, extractFields, fixSenders, extractDetail, isDetailPage, siteSorts, siteMenu, state, buyButton, titleElement, inRepeatedCard, inSiteHeader, pageTitle, BUY_RE, visible, norm };
 
   window.__mmToggle = () => (!armed ? arm() : state.on ? showReal() : showDisguise());
 
