@@ -237,6 +237,59 @@
     return null;
   }
 
+  // 배송 종류 이름 (원래 이름, 위장 이름)
+  const SHIP_TYPES = [
+    [/로켓\s*프레시|rocket[_-]?fresh|logo[_-]?fresh/i, '로켓프레시'],
+    [/판매자\s*로켓|rocket[_-]?merchant/i, '판매자로켓'],
+    [/로켓\s*직구|rocket[_-]?(global|jikgu|direct)|logo[_-]?jikgu/i, '로켓직구'],
+    [/로켓\s*설치|rocket[_-]?install/i, '로켓설치'],
+    [/로켓\s*배송|로켓\s*와우|logo[_-]?rocket|rocket[_-]?(filter|delivery|wow|badge)/i, '로켓배송'],
+    [/와우\s*(회원|전용|할인)/, '와우회원'],
+    [/새벽\s*(배송|도착)/, '새벽배송'],
+    [/샛별\s*배송/, '샛별배송'],
+    [/당일\s*(배송|도착)|오늘\s*도착|오늘\s*\([^)]{1,3}\)\s*도착/, '오늘도착'],
+    [/오늘\s*출발|당일\s*발송|당일\s*출고/, '오늘출발'],
+    [/스마일\s*배송/, '스마일배송'],
+    [/쓱\s*배송|SSG\s*배송|쓱1day/i, '쓱배송'],
+    [/슈팅\s*배송/, '슈팅배송'],
+    [/N\s*배송|도착\s*보장/, '도착보장'],
+    [/해외\s*(배송|직구|구매대행)|global\s*shipping|international\s*shipping/i, '해외배송'],
+    [/\bprime\b/i, 'Prime'],
+    [/same[- ]day/i, 'Same-day'],
+    [/(next|one)[- ]day/i, 'Next-day'],
+    [/free\s*returns?|무료\s*반품/i, '무료반품'],
+  ];
+  const SHIP_ALIAS = { 로켓배송: '특송', 판매자로켓: '위탁특송', 로켓프레시: '냉장특송', 로켓직구: '해외특송', 로켓설치: '설치특송', 와우회원: '우대',
+    새벽배송: '새벽', 샛별배송: '새벽', 오늘도착: '당일', 오늘출발: '당일출고', 스마일배송: '자체특송', 쓱배송: '자체특송', 슈팅배송: '자체특송',
+    도착보장: '납기보장', 해외배송: '해외', Prime: '특송', 'Same-day': '당일', 'Next-day': '익일', 무료반품: '반품무상' };
+  const shipName = (n) => (state.labels === 'real' ? n : SHIP_ALIAS[n] || n);
+  // 운임 칸: '특송 · 0' / 실제 이름 모드면 '로켓배송 · 무료'
+  function shipCell(f) {
+    const types = (f.shipTypes || []).filter((n) => n !== '무료반품').slice(0, 2).map(shipName);
+    let fee = '';
+    if (f.ship === 0) fee = state.labels === 'real' ? (f.shipCond ? '조건부 무료' : '무료') : (f.shipCond ? '0*' : '0');
+    else if (f.ship != null) fee = f.ship.toLocaleString();
+    return esc([...types, fee].filter(Boolean).join(' · '));
+  }
+
+  // 가격 요소 바로 앞에 붙은 글 (형제나 부모의 앞 글)
+  function priceLabel(el) {
+    let e = el;
+    for (let i = 0; i < 3 && e; i++) {
+      let pv = e.previousSibling;
+      while (pv && pv.nodeType === 3 && !norm(pv.textContent)) pv = pv.previousSibling;
+      if (pv) {
+        // 앞 글에 다른 가격이 있으면 그 가격 뒤의 글만 이름표로 봐요 ('최고판매가 35,900원 | 판매가격' → '판매가격')
+        let txt = norm(pv.textContent);
+        const ms = [...txt.matchAll(new RegExp(PRICE_RE.source, 'g'))];
+        if (ms.length) { const last = ms[ms.length - 1]; txt = txt.slice(last.index + last[0].length); }
+        return txt.slice(-24) + ' ' + (el.getAttribute('aria-label') || '');
+      }
+      e = e.parentElement;
+    }
+    return el.getAttribute('aria-label') || '';
+  }
+
   function extractFields(root, opts = {}) {
     const text = norm(root.innerText);
     const f = { sales: null, salesPlus: false, title: '', sender: '', price: null, orig: null, discount: null, rating: null, ratingMax: 5, reviews: null, date: null, time: null, img: null, link: null, labels: [], soldOut: false, preview: '' };
@@ -249,12 +302,22 @@
       if ([...el.children].some((c) => PRICE_RE.test(norm(c.textContent)))) continue; // 가장 안쪽만
       const m = t.match(PRICE_RE);
       const { v, cur } = priceOf(m);
-      if (v && (cur !== '원' || v >= 100)) prices.push({ v, cur, strike: isStrike(el), per: /적립|쿠폰|캐시|포인트|\/\s*(oz|ct|count|unit)|per\s/i.test(t) });
+      // 가격 앞의 이름표: '판매가 40,883원', '정상가 49,900원', '배송비 3,000원'
+      const lab = (t.replace(m[0], '') + ' ' + priceLabel(el)).trim();
+      const ship = /배송비|택배비|운임|shipping|delivery|postage/i.test(lab);
+      const origLab = /정상\s*가|정가|최고\s*판매가|소비자\s*가|권장|시중\s*가|원래\s*가|list\s*price|was|reg\.?|msrp|typical|retail/i.test(lab);
+      const saleLab = /판매\s*가|할인\s*가|혜택\s*가|최종\s*가|적용\s*가|특가|sale|now|deal|your price/i.test(lab);
+      if (v && (cur !== '원' || v >= 100)) prices.push({ v, cur, strike: isStrike(el) || origLab, sale: saleLab && !origLab, per: ship || /적립|쿠폰\s*할인\s*금액|캐시|포인트|\/\s*(oz|ct|count|unit)|per\s|\d+\s*(g|ml|개)\s*당/i.test(t + ' ' + lab) });
       if (prices.length > 12) break;
     }
-    const real = prices.filter((p) => !p.strike && !p.per);
+    const real = prices.filter((p) => !p.strike && !p.per).sort((a, b) => b.sale - a.sale);
     if (real.length) { f.price = real[0].v; f.cur = real[0].cur; }
-    const struck = prices.filter((p) => p.strike);
+    else {
+      // 모두 '원래 가격'처럼 보이면 가장 싼 것을 지금 가격으로
+      const any = prices.filter((p) => !p.per).sort((a, b) => a.v - b.v)[0];
+      if (any && prices.filter((p) => !p.per).length >= 2) { f.price = any.v; f.cur = any.cur; any.strike = false; any.used = true; }
+    }
+    const struck = prices.filter((p) => p.strike && !p.used);
     if (struck.length) f.orig = Math.max(...struck.map((p) => p.v));
 
     let m;
@@ -284,7 +347,8 @@
     if (f.rating != null && (f.rating < 0 || f.rating > 10)) f.rating = null;
 
     // 리뷰 수
-    if ((m = text.match(/(?:리뷰|후기|상품평|평가|review)s?\s*\(?\s*([\d,]+)(?!\s*원)/i))) f.reviews = num(m[1]);
+    if ((m = text.match(/(?:리뷰|후기|상품평)\s*(?:갯수|개수|수)\s*:?\s*\(?\s*([\d,]+)\s*(?:건|개)?/))) f.reviews = num(m[1]);
+    else if ((m = text.match(/(?:리뷰|후기|상품평|평가|review)s?\s*\(?\s*([\d,]+)(?!\s*원)/i))) f.reviews = num(m[1]);
     else if ((m = text.match(/([\d,]+)\s*(?:명|개|건)?\s*(?:의\s*)?(?:리뷰|후기|상품평|평가|참여)/))) f.reviews = num(m[1]);
     else if ((m = text.match(/([\d,.]+)\s*(K|M)?\+?\s*(?:global\s*)?(?:ratings?|reviews?|product ratings)/i))) f.reviews = num(m[1]) * (m[2] ? (/k/i.test(m[2]) ? 1000 : 1e6) : 1);
     else if ((m = text.match(/\(\s*([\d,]+)\s*\)(?!\s*원)/))) f.reviews = num(m[1]);
@@ -337,6 +401,19 @@
     if (/무료\s*배송|무료\s*취소|free\s*(shipping|delivery|returns|cancellation)/i.test(text)) f.labels.push('free');
     if (root.querySelector('img[src*="rocket" i],img[alt*="로켓"]') || /로켓/.test(text)) f.labels.push('fast');
     if (/(^|\s)(광고|AD|Sponsored)(\s|$)/.test(text)) f.labels.push('ad');
+
+    // 배송 종류: 글자와 배지 그림(alt·파일 이름) 둘 다 봐요. 쿠팡은 로켓배송 종류를 그림으로만 보여줘요.
+    const badges = [...root.querySelectorAll('img')].slice(0, 20).map((i) => (i.alt || '') + ' ' + [i.currentSrc, i.src, i.getAttribute('data-src'), i.getAttribute('srcset')].filter(Boolean).map((u) => u.split('?')[0].split('/').pop()).join(' ')).join(' ');
+    const shipText = text + ' ' + badges;
+    f.shipTypes = SHIP_TYPES.filter(([re]) => re.test(shipText)).map(([, n]) => n);
+    if (f.shipTypes.some((n) => /^(판매자로켓|로켓프레시|로켓직구|로켓설치)$/.test(n))) f.shipTypes = f.shipTypes.filter((n) => n !== '로켓배송');
+    // 배송비: 무료면 0, 금액이 적혀 있으면 그 금액, 모르면 비워 둬요.
+    f.ship = null; f.shipCond = false;
+    if (/조건부\s*무료/.test(text)) { f.ship = 0; f.shipCond = true; }
+    else if (/무료\s*배송|배송비\s*:?\s*무료|free\s*(shipping|delivery)|ships?\s*free|envío gratis|livraison gratuite|kostenloser versand|送料無料/i.test(text)) f.ship = 0;
+    else if ((m = text.match(/배송비\s*:?\s*\+?\s*([\d,]+)\s*원/)) || (m = text.match(/\+\s*([\d,]+)\s*원\s*(?:배송|택배)/)) || (m = text.match(/(?:택배|배송)\s*([\d,]+)\s*원/))) f.ship = num(m[1]);
+    else if ((m = text.match(/\+?\s*(?:US\s*|C|A|AU)?(?:\$|€|£|KRW\s?)\s?([\d.,]+)\s*(?:shipping|delivery|postage|배송)/i)) || (m = text.match(/(?:shipping|delivery|postage)\s*:?\s*\+?\s*(?:US\s*)?(?:\$|€|£)\s?([\d.,]+)/i))) f.ship = num(m[1]);
+    if (f.ship != null && f.price != null && f.ship >= f.price) f.ship = null;
     f.soldOut = /품절|매진|마감|예약\s*불가|일시\s*중단|out of stock|sold out|unavailable/i.test(text);
 
     f.img = pickImage(root);
@@ -650,7 +727,7 @@
     // 스프레드시트
     '발주내역': '지금 보는 목록', '출고': '주문·배송 목록', '임시': '장바구니', '관심': '찜 목록', '반품': '취소·반품', '요약': '사이트 홈',
     'No': '순서', '거래처': '판매자', '품목': '상품명', '단가': '가격', '할인(%)': '할인율(%)', '가중치': '평점',
-    '거래수': '리뷰 수', '출고수': '판매수', '납기': '도착일', '비고': '상품 정보',
+    '거래수': '리뷰 수', '출고수': '판매수', '납기': '도착일', '비고': '상품 정보', '운임': '배송비·배송 종류',
     // 결재함
     '새 결재 진행': '사이트 홈', '결재 대기 문서': '지금 보는 목록', '중요 문서': '별표한 상품', '관심 문서': '찜 목록',
     '임시 저장 문서': '장바구니', '기안 문서함': '주문·배송 목록', '반려 문서함': '취소·반품', '전체 문서': '사이트 홈',
@@ -764,6 +841,7 @@
       const parts = [];
       if (f.price != null) parts.push(won(f.price, f.cur) + (f.orig ? ` (정가 ${won(f.orig, f.cur)})` : ''));
       if (f.discount) parts.push(`${f.discount}% 할인`);
+      if (f.ship != null || f.shipTypes?.length) parts.push(['배송', ...(f.shipTypes || []), f.ship === 0 ? (f.shipCond ? '조건부 무료' : '무료') : f.ship != null ? won(f.ship, f.cur) : ''].filter(Boolean).join(' '));
       if (f.rating != null) parts.push(`평점 ${f.rating}${f.ratingMax === 10 ? '/10' : ''}`);
       if (f.reviews != null) parts.push(`리뷰 ${f.reviews.toLocaleString()}개`);
       if (f.sales != null) parts.push(`판매 ${count(f.sales, f.salesPlus)}`);
@@ -775,7 +853,11 @@
 
   // ---------- 4. 템플릿 ----------
   const LABEL = { fast: ['업무', '#1a73e8'], free: ['공유', '#188038'], ad: ['참조', '#80868b'] };
-  const labelHtml = (f) => (f.labels || []).map((l) => `<span class="lab" style="--c:${LABEL[l][1]}">${LABEL[l][0]}</span>`).join('');
+  const labelHtml = (f) => {
+    const types = (f.shipTypes || []).filter((n) => n !== '무료반품').slice(0, 2);
+    const base = (f.labels || []).filter((l) => !(l === 'fast' && types.length)).map((l) => `<span class="lab" style="--c:${LABEL[l][1]}">${LABEL[l][0]}</span>`);
+    return base.join('') + types.map((n) => `<span class="lab" style="--c:#5f6368" title="${esc(n)}">${esc(shipName(n))}</span>`).join('');
+  };
   const thumb = (f, cls = 'th') => f.img && state.strength !== 'strong'
     ? `<img class="${cls}" src="${esc(f.img)}" data-big="${esc(f.img)}" alt="">`
     : (f.img ? `<span class="clip" data-big="${esc(f.img)}">📎</span>` : '');
@@ -885,16 +967,17 @@
       icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="4" y="3" width="24" height="26" rx="2" fill="#2e8b57"/><path d="M9 10h14M9 15h14M9 20h14M16 8v16" stroke="#fff" stroke-width="2"/></svg>',
       sidebar: () => '',
       list(items) {
-        const cols = ['', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
-        const head = ['No', '거래처', '품목', '단가', '할인(%)', '가중치', '거래수', '출고수', '납기'];
+        const cols = ['', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+        const head = ['No', '거래처', '품목', '단가', '운임', '할인(%)', '가중치', '거래수', '출고수', '납기'];
         const weak = weakMode();
         return `<div class="sheet"><div class="fx"><span>fx</span><input value="=SUMPRODUCT(D2:D${items.length + 1},(1-E2:E${items.length + 1}/100))" readonly></div>
-          <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:120px"><col><col style="width:90px"><col style="width:66px"><col style="width:62px"><col style="width:74px"><col style="width:74px"><col style="width:96px"></colgroup>
+          <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:120px"><col><col style="width:90px"><col style="width:96px"><col style="width:66px"><col style="width:62px"><col style="width:74px"><col style="width:74px"><col style="width:96px"></colgroup>
           <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
           <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
           ${items.map((f, i) => `<tr class="${f.soldOut ? 'dim' : ''}" data-id="${f.id}" title="${tip(f)}"><th>${i + 2}</th>
             <td>${i + 1}</td><td>${esc(f.sender)}</td><td class="item">${thumb(f, 'th s')}${esc(f.title)}</td>
             <td class="n">${f.price != null ? (weak ? won(f.price) : f.price.toLocaleString()) : ''}</td>
+            <td>${shipCell(f)}</td>
             <td class="n">${f.discount ?? ''}</td><td class="n">${f.rating ?? ''}</td>
             <td class="n" data-rv="${f.id}" title="눌러서 의견 펼치기">${f.reviews != null ? f.reviews.toLocaleString() : '▸'}</td>
             <td class="n">${f.sales != null ? count(f.sales, f.salesPlus) : ''}</td>
@@ -902,7 +985,7 @@
           </tbody></table>${sheetTabs()}</div>`;
       },
       detail(f) {
-        const rows = [['품목', f.title], ['거래처', f.sender], ['단가', f.price?.toLocaleString()], ['할인(%)', f.discount], ['가중치', f.rating], ['거래수', f.reviews?.toLocaleString()], ['출고수', f.sales != null ? count(f.sales, f.salesPlus) : ''], ['납기', ymd(f.date)],
+        const rows = [['품목', f.title], ['거래처', f.sender], ['단가', f.price?.toLocaleString()], ['운임', shipCell(f)], ['할인(%)', f.discount], ['가중치', f.rating], ['거래수', f.reviews?.toLocaleString()], ['출고수', f.sales != null ? count(f.sales, f.salesPlus) : ''], ['납기', ymd(f.date)],
           ...factsFor(f).map((p, i) => [`비고${i + 1}`, p]),
           ...(state.reviews === 'hide' ? [] : (f.reviews_list || [])).map((r, i) => [`의견${i + 1}`, `${r.author} | ${r.rating ?? ''} | ${r.body.join(' ')}`])];
         const g = gallery(f);
@@ -933,13 +1016,14 @@
       list(items) {
         const weak = weakMode();
         const st = (f) => f.soldOut ? '<span class="stt done">반려</span>' : (state.seen[f.id] ? '<span class="stt ing">진행</span>' : '<span class="stt new">대기</span>');
-        return `<div class="appr"><table><thead><tr><th></th><th>문서번호</th><th>제목</th><th>기안부서</th><th>금액</th><th>의견</th><th>조회</th><th>기안일</th><th>상태</th></tr></thead><tbody>
+        return `<div class="appr"><table><thead><tr><th></th><th>문서번호</th><th>제목</th><th>기안부서</th><th>금액</th><th>운임</th><th>의견</th><th>조회</th><th>기안일</th><th>상태</th></tr></thead><tbody>
           ${items.map((f) => `<tr class="${state.seen[f.id] ? 'read' : ''}" data-id="${f.id}" title="${tip(f)}">
             <td>${starBtn(f)}</td>
             <td class="mono">구매-${String(f.id).slice(0, 4)}-${String(f.id).slice(-4)}</td>
             <td class="tt">${thumb(f, 'th s')}[구매요청] ${esc(f.title)}${f.discount ? ` <em>(조정 ${f.discount}%)</em>` : ''}</td>
             <td>${esc(f.sender)}</td>
             <td class="n">${f.price != null ? (weak ? won(f.price) : f.price.toLocaleString()) : '-'}</td>
+            <td>${shipCell(f)}</td>
             <td class="n" data-rv="${f.id}" title="눌러서 의견 펼치기">${f.reviews != null ? count(f.reviews) : '▸'}</td>
             <td class="n">${f.sales != null ? count(f.sales, f.salesPlus) : ''}</td>
             <td>${f.date ? disguise.day(f.date) : ''} ${f.rating != null ? `<small>${weak ? '★' + f.rating : disguise.clock(f)}</small>` : ''}</td>
@@ -1429,6 +1513,9 @@
     }
     if (e.key === 'Escape' && state.escHide && !state.on) showDisguise();
   }, true);
+
+  // 시험용(확장프로그램이 아닌 곳에 직접 넣었을 때만): 내부를 들여다볼 수 있게
+  if (!hasChrome) window.__mmDebug = { findCards, extractFields, extractDetail, isDetailPage, siteSorts, siteMenu, state };
 
   window.__mmToggle = () => (!armed ? arm() : state.on ? showReal() : showDisguise());
 
