@@ -305,7 +305,7 @@
 
   // 제목·판매자가 될 수 없는 글 (리뷰 수, 배지 등)
   const NOT_TITLE = /^(리뷰|(일반|공식|인증|브랜드)\s*상품|아이템\s*카드|후기|평점|별점|상품평|구매평|배송|무료\s*배송|배송비|찜|좋아요|쿠폰|광고|AD|Sponsored|품절|세일|특가|오늘\s*드림|오늘\s*출발|내일\s*도착|더\s*보기|자세히|장바구니|바로\s*구매|구매하기|\(?\d)/i;
-  const BADGE_WORD = /^(Popular now|Preview seller|Star Seller|Bestseller|Etsy'?s Pick|More like this|Add to cart|게스트\s*선호|슈퍼\s*호스트|Guest\s*favou?rite|Superhost|최다\s*판매|추가\s*구매\s*선택|프라임.{0,10}|More buying choices|Prime.{0,12}|Climate Pledge.*|탄소.{0,6}|관련|Related|후원|후원\s*광고|종합\s*추천|아마존\s*추천|Amazon'?s?\s*Choice|Overall\s*Pick|Limited\s*time\s*deal|기간\s*한정\s*(딜|할인)|새\s*창\s*(에서\s*)?(이동|열기|열림)|opens? in (a )?new (window|tab)|최고|우수|매우\s*좋음|아주\s*좋음|좋음|훌륭함|만족|매우\s*만족|Exceptional|Excellent|Very good|Good|Wonderful|Superb|Fabulous|Pleasant|미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
+  const BADGE_WORD = /^(Skip\s.{0,20}|.{0,10}건너뛰기|본문\s*바로\s*가기|Highly rated|Top rated|New at( \w+)?|Only at( \w+)?|Deal of the day|Clearance|Popular now|Preview seller|Star Seller|Bestseller|Etsy'?s Pick|More like this|Add to cart|게스트\s*선호|슈퍼\s*호스트|Guest\s*favou?rite|Superhost|최다\s*판매|추가\s*구매\s*선택|프라임.{0,10}|More buying choices|Prime.{0,12}|Climate Pledge.*|탄소.{0,6}|관련|Related|후원|후원\s*광고|종합\s*추천|아마존\s*추천|Amazon'?s?\s*Choice|Overall\s*Pick|Limited\s*time\s*deal|기간\s*한정\s*(딜|할인)|새\s*창\s*(에서\s*)?(이동|열기|열림)|opens? in (a )?new (window|tab)|최고|우수|매우\s*좋음|아주\s*좋음|좋음|훌륭함|만족|매우\s*만족|Exceptional|Excellent|Very good|Good|Wonderful|Superb|Fabulous|Pleasant|미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
 
   // 줄 대부분이 같은 보낸이('겨울준비')면 그건 기획전 이름이에요. 그 줄들은 다음 짧은 줄(브랜드)을 써요.
   function fixSenders(items) {
@@ -385,6 +385,8 @@
     const discText = text.replace(/(예매율|점유율|적립률?|달성률?|좌석\s*점유|에그\s*지수|골든\s*에그|만족도|신선도|관람평|Tomatometer|Audience Score)\s*\??\s*[\d.]+\s*%/gi, '');
     if ((m = discText.match(/(\d{1,2})\s*%/))) f.discount = +m[1];
     else if (f.orig && f.price && f.orig > f.price) f.discount = Math.round((1 - f.price / f.orig) * 100);
+    // 글의 첫 %가 카드 할인·적립 같은 다른 숫자일 수 있어요: 원래 가격과 지금 가격으로 셈한 값과 많이 다르면 셈한 값을 써요
+    if (f.orig && f.price && f.orig > f.price) { const calc = Math.round((1 - f.price / f.orig) * 100); if (Math.abs(calc - (f.discount || 0)) > 3) f.discount = calc; }
     if (!f.orig && f.discount && f.price) {
       const lo = prices.filter((p) => !p.per && p.v < f.price).map((p) => p.v).sort((a, b) => b - a)[0];
       if (lo && Math.abs(1 - lo / f.price - f.discount / 100) < 0.03) { f.orig = f.price; f.price = lo; }
@@ -485,7 +487,7 @@
     // G마켓 '공식상품', '인증상품' 같은 화면 낭독용 말머리는 떼요
     const unbadge = (t) => t && t.replace(/^(?:[가-힣]{2,5}\s*상품(?=\s*\S|$)\s*)+/, '').replace(/^(스토어|판매자|상점|셀러|브랜드)(명|\s*이름)\s*:?\s*/, '').replace(/\s*(지도에서\s*(표시|보기)|지도\s*보기|show on map|view on map)$/i, '');
     let st = senderEl && unbadge(norm(senderEl.textContent));
-    const okSender = (s) => s && s.length >= 2 && s.length <= 16 && s !== f.title && !/\d.*(원|%)|[%₩]|^\d/.test(s) && !NOT_TITLE.test(s) && !BADGE_WORD.test(s)
+    const okSender = (s) => s && s.length >= 2 && s.length <= 16 && s !== f.title && !/\d.*(원|%)|[%₩$€£¥]|^\d/.test(s) && !NOT_TITLE.test(s) && !BADGE_WORD.test(s)
       // 화면 낭독용 칸 이름 ('상품명', '가격정보', '판매가', '할인율')
       && !/^[,+·|]|[:：]$/.test(s) && !/^(제한된\s*시간|한정\s*시간|일반\s*가격|정가|가격)/.test(s) && !/색상|패턴|제품\s*페이지|colors?|options?|more\b/i.test(s)
       && !/찜\s*하기|순위|^찜$|wishlist|add to (list|favorites)/i.test(s)
@@ -593,11 +595,23 @@
     }
     return false;
   }
+  // 사이트 머리말(맨 위 메뉴 줄) 안인가? 'productDetailHeader'처럼 이름만 header인 본문 칸은 빼요.
+  function inSiteHeader(b) {
+    if (b.closest('header,nav,[role="banner"],[role="navigation"]')) return true;
+    for (let e = b.parentElement; e && e !== DOC.body; e = e.parentElement) {
+      const n = String(e.className || '') + ' ' + (e.id || '');
+      if (!/(^|[\s_-])(header|gnb|global[-_]?nav|top[-_]?bar)([\s_-]|$)/i.test(n)) continue;
+      const r = e.getBoundingClientRect();
+      const top = r.top + ((DOC.defaultView || window).scrollY || 0);
+      if (top < 160 && r.height < 260) return true;
+    }
+    return false;
+  }
   function buyButton() {
     return [...DOC.querySelectorAll('button,a,input[type="submit"],[role="button"]')]
       .find((b) => !host?.contains(b) && BUY_RE.test(norm(b.textContent || b.value)) && visible(b) && !inRepeatedCard(b)
         // 머리말의 '장바구니' 메뉴 링크는 구매 버튼이 아니에요.
-        && !b.closest('header,nav,[class*="header" i],[class*="gnb" i],[id*="header" i],[id*="gnb" i]')
+        && !inSiteHeader(b)
         && !(b.tagName === 'A' && /cart|basket|장바구니/i.test(b.getAttribute('href') || '') && /^장바구니$/.test(norm(b.textContent)))
         // 목록 위 '전체선택 · 장바구니 · 선물하기' 막대는 고른 상품을 한꺼번에 담는 버튼이에요 (교보문고)
         && !(() => { for (let e = b.parentElement, i = 0; e && i < 4; e = e.parentElement, i++) if (/^전체\s*선택|select all/i.test(norm(e.innerText || ''))) return true; return false; })()
