@@ -186,8 +186,8 @@
     const mk = (m, d) => { const x = new Date(now.getFullYear(), m - 1, d); if (x < now - 1000 * 3600 * 24 * 60) x.setFullYear(x.getFullYear() + 1); return x; };
     let m;
     const MON = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
-    if ((m = text.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2})/i))) return mk(MON[m[1].slice(0, 3).toLowerCase()], +m[2]);
-    if ((m = text.match(/(today|tomorrow)/i))) { const x = new Date(now); x.setDate(x.getDate() + (/tomorrow/i.test(m[1]) ? 1 : 0)); return x; }
+    if ((m = text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2})\b/i))) return mk(MON[m[1].slice(0, 3).toLowerCase()], +m[2]);
+    if ((m = text.match(/\b(today|tomorrow)\b/i))) { const x = new Date(now); x.setDate(x.getDate() + (/tomorrow/i.test(m[1]) ? 1 : 0)); return x; }
     if ((m = text.match(/(오늘|내일|모레)(?!의|\s*의|드림|출발|ON|특가|만|의\s*집)/))) { const x = new Date(now); x.setDate(x.getDate() + { 오늘: 0, 내일: 1, 모레: 2 }[m[1]]); return x; }
     if ((m = text.match(/(20\d{2})[.\-/]\s?(\d{1,2})[.\-/]\s?(\d{1,2})/))) return new Date(+m[1], +m[2] - 1, +m[3]);
     if ((m = text.match(/(?:^|[^\d])(\d{2})\.(\d{1,2})\.(\d{1,2})(?!\d)/))) return new Date(2000 + +m[1], +m[2] - 1, +m[3]); // 26.12.03
@@ -212,9 +212,9 @@
     const said = all.map((e) => [e.getAttribute?.('aria-label'), e.getAttribute?.('title'), e.getAttribute?.('alt'), e.children?.length ? '' : e.textContent].filter(Boolean).join(' ')).join(' | ');
     if ((m = said.match(/별\s*5\s*개\s*중\s*(\d(?:\.\d)?)\s*개/))) return +m[1];
     if ((m = said.match(/5\s*점\s*만점(?:에|\s*중)?\s*(\d(?:\.\d)?)\s*점?/))) return +m[1];
-    if ((m = said.match(/(\d(?:\.\d)?)\s*(?:\/|out of)\s*5(?:\.0)?/i))) return +m[1];
+    if ((m = said.match(/(\d(?:\.\d)?)\s*(?:\/|out of)\s*5(?:\.0)?\b/i))) return +m[1];
     if ((m = said.match(/(?:별점|평점|rated|rating)\s*:?\s*(\d(?:\.\d)?)\s*(?:점|stars?)?(?![\d,])/i))) return +m[1];
-    if ((m = said.match(/(\d(?:\.\d)?)\s*(?:stars?|점)/i)) && +m[1] <= 5) return +m[1];
+    if ((m = said.match(/(\d(?:\.\d)?)\s*(?:stars?|점)\b/i)) && +m[1] <= 5) return +m[1];
     // 3) class 이름에 점수: star-5, rating_4, score40, rate-45
     for (const e of all) {
       const c = String(e.className?.baseVal ?? e.className ?? '');
@@ -293,9 +293,32 @@
     return el.getAttribute('aria-label') || '';
   }
 
+  // 가격 바로 뒤 글: '10,000원 쿠폰', '1,400원 적립'이면 가격이 아니에요.
+  function priceAfter(el) {
+    for (let e = el, i = 0; i < 3 && e; i++, e = e.parentElement) {
+      let nx = e.nextSibling;
+      while (nx && nx.nodeType === 3 && !norm(nx.textContent)) nx = nx.nextSibling;
+      if (nx) return norm(nx.textContent).slice(0, 12);
+    }
+    return '';
+  }
+
   // 제목·판매자가 될 수 없는 글 (리뷰 수, 배지 등)
   const NOT_TITLE = /^(리뷰|(일반|공식|인증|브랜드)\s*상품|아이템\s*카드|후기|평점|별점|상품평|구매평|배송|무료\s*배송|배송비|찜|좋아요|쿠폰|광고|AD|Sponsored|품절|세일|특가|오늘\s*드림|오늘\s*출발|내일\s*도착|더\s*보기|자세히|장바구니|바로\s*구매|구매하기|\(?\d)/i;
-  const BADGE_WORD = /^(미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
+  const BADGE_WORD = /^(새\s*창\s*(에서\s*)?(이동|열기|열림)|opens? in (a )?new (window|tab)|최고|우수|매우\s*좋음|아주\s*좋음|좋음|훌륭함|만족|매우\s*만족|Exceptional|Excellent|Very good|Good|Wonderful|Superb|Fabulous|Pleasant|미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
+
+  // 줄 대부분이 같은 보낸이('겨울준비')면 그건 기획전 이름이에요. 그 줄들은 다음 짧은 줄(브랜드)을 써요.
+  function fixSenders(items) {
+    if (items.length < 6) return items;
+    const cnt = {};
+    for (const f of items) cnt[f.sender] = (cnt[f.sender] || 0) + 1;
+    for (const [s, n] of Object.entries(cnt)) {
+      if (n < items.length * 0.3) continue;
+      const alts = items.filter((f) => f.sender === s && f.sender2 && f.sender2 !== s);
+      if (alts.length >= n * 0.6 && new Set(alts.map((f) => f.sender2)).size >= 3) alts.forEach((f) => { f.sender = f.sender2; });
+    }
+    return items;
+  }
 
   function extractFields(root, opts = {}) {
     const text = norm(root.innerText);
@@ -303,6 +326,7 @@
 
     // 가격: '원'이나 '₩'이 붙은 짧은 덩어리. 취소선이면 원래 가격이에요.
     const prices = [];
+    let m0;
     for (const el of root.querySelectorAll('*')) {
       const t = norm(el.textContent);
       if (t.length > 22 || !PRICE_RE.test(t)) continue;
@@ -312,9 +336,9 @@
       // 가격 앞의 이름표: '판매가 40,883원', '정상가 49,900원', '배송비 3,000원'
       const lab = (t.replace(m[0], '') + ' ' + priceLabel(el)).trim();
       const ship = /배송비|택배비|운임|shipping|delivery|postage/i.test(lab);
-      const origLab = /정상\s*가|정가|원가(?!격)|할인\s*전|최고\s*판매가|소비자\s*가|권장|시중\s*가|원래\s*가|list\s*price|was|reg\.?|msrp|typical|retail/i.test(lab);
-      const saleLab = /판매\s*가|할인\s*가|혜택\s*가|최종\s*가|적용\s*가|특가|sale|now|deal|your price/i.test(lab);
-      if (v && (cur !== '원' || v >= 100)) prices.push({ v, cur, strike: isStrike(el) || origLab, sale: saleLab && !origLab, per: ship || /적립|쿠폰\s*할인\s*금액|캐시|포인트|\/\s*(oz|ct|count|unit)|per\s|\d+\s*(g|ml|개)\s*당/i.test(t + ' ' + lab) });
+      const origLab = /정상\s*가|정가|(?<![회특])원가(?!격)|할인\s*전|최고\s*판매가|소비자\s*가|권장|시중\s*가|원래\s*가|list\s*price|was\b|reg\.?\b|msrp|typical|retail/i.test(lab);
+      const saleLab = /판매\s*가|할인\s*가|혜택\s*가|최종\s*가|적용\s*가|특가|sale|now\b|deal|your price/i.test(lab);
+      if (v && (cur !== '원' || v >= 100)) prices.push({ v, cur, strike: isStrike(el) || origLab, sale: saleLab && !origLab, per: ship || /^(쿠폰|할인\s*쿠폰|적립|추가\s*할인|캐시|포인트|off\b)/i.test((t.slice(t.indexOf(m[0]) + m[0].length) || priceAfter(el)).trim()) || /적립|쿠폰\s*할인\s*금액|캐시|포인트|\/\s*(oz|ct|count|unit)|per\s|\d+\s*(g|ml|개)\s*당/i.test(t + ' ' + lab) });
       if (prices.length > 12) break;
     }
     if (!prices.length) {
@@ -332,6 +356,8 @@
           if (prices.length > 6) break;
         }
       }
+      // 29CM '32% 66,550': 할인율 바로 뒤 숫자가 할인된 가격이에요.
+      if (!prices.length && krw && (m0 = text.match(/\d{1,2}\s*%\s+(\d{1,3}(?:,\d{3})+)(?!\s*(?:개|건|명|점|%|원|\)))/))) prices.push({ v: num(m0[1]), cur: '원', strike: false, sale: true, per: false });
     }
     const real = prices.filter((p) => !p.strike && !p.per).sort((a, b) => b.sale - a.sale);
     if (real.length) { f.price = real[0].v; f.cur = real[0].cur; }
@@ -372,13 +398,15 @@
       if (w) f.rating = Math.round(num(w[1]) / 2) / 10;
     }
     if (f.rating == null) f.rating = starRating(root);
+    // 카드 끝의 '4.8 (144)', '5 (144)' : 별 그림 옆 평점과 리뷰 수 (29CM·무신사)
+    if (f.rating == null && (m = text.match(/(?:^|\s)([0-5](?:\.\d)?)\s*\(([\d,]+\+?)\)\s*$/))) { f.rating = num(m[1]); if (f.reviews == null) f.reviews = num(m[2]); }
     if (f.rating != null && f.rating > 5) f.ratingMax = 10;
     if (f.rating != null && (f.rating < 0 || f.rating > 10)) f.rating = null;
 
     // 리뷰 수
     if ((m = text.match(/(?:리뷰|후기|상품평)\s*(?:갯수|개수|수)\s*:?\s*\(?\s*([\d,]+)\s*(?:건|개)?/))) f.reviews = num(m[1]);
-    else if ((m = text.match(/(?:리뷰|후기|상품평|평가|review)s?\s*\(?\s*([\d,]+)(?!\s*원)/i))) f.reviews = num(m[1]);
-    else if ((m = text.match(/([\d,]+)\s*(?:명|개|건)?\s*(?:의\s*)?(?:리뷰|후기|상품평|평가|참여)/))) f.reviews = num(m[1]);
+    else if ((m = text.match(/(?:리뷰|후기|상품평|평가|review)s?\s*\(?\s*([\d,]+)(?![\d,])(?!\s*[원%])/i))) f.reviews = num(m[1]);
+    else if ((m = text.match(/([\d,]+)\s*(?:명|개|건)?\s*(?:의\s*)?(?:이용\s*|숙박\s*|투숙\s*)?(?:리뷰|후기|상품평|평가|참여)/))) f.reviews = num(m[1]);
     else if ((m = text.match(/([\d,.]+)\s*(K|M)?\+?\s*(?:global\s*)?(?:ratings?|reviews?|product ratings)/i))) f.reviews = num(m[1]) * (m[2] ? (/k/i.test(m[2]) ? 1000 : 1e6) : 1);
     else if ((m = text.match(/\(\s*([\d,]+)\s*\)(?!\s*원)/))) f.reviews = num(m[1]);
     if (f.reviews != null && f.reviews === f.price) f.reviews = null;
@@ -412,24 +440,31 @@
       .filter(({ t }) => t.length >= 4 && t.length <= 140 && !(PRICE_RE.test(t) && t.length < 25) && !/^\d/.test(t) && !NOT_TITLE.test(t))
       .filter(({ t }) => !/^[\[(【][^\])】]*[\])】]$/.test(t)) // '[국내도서]' 같은 말머리만 있는 글
       .filter(({ t }) => !/^\S{0,8}\s?(아이템|상품)\s*카드$/.test(t)) // G마켓 '스마일상품 아이템카드' (화면 낭독용 이름)
-      .map(({ t, s }) => ({ t, s: s - (/^(공연기간|관람기간|기간|장소|일시|위치|주소|출발|도착)/.test(t) || /~/.test(t) ? 5 : 0) }));
+      .map(({ t, s }) => ({ t, s: s - (/^(공연기간|관람기간|기간|장소|일시|위치|주소|출발|도착)/.test(t) || /~/.test(t) ? 5 : 0)
+        // 설명 문장('…산정됩니다.', 'Prices include taxes.')은 제목이 아니에요 (아고다 말풍선)
+        - (t.length > 25 && /(니다|어요|해요|세요)\.?$|[a-z]\.$/.test(t) ? 6 : 0) }));
     if (good.length) f.title = good.sort((a, b) => b.s - a.s || b.t.length - a.t.length)[0].t;
     if (!f.title) {
-      const lines = (root.innerText || '').split('\n').map(norm).filter((t) => t.length >= 4 && !(PRICE_RE.test(t) && t.length < 25) && !NOT_TITLE.test(t) && !BADGE_WORD.test(t));
+      const lines = (root.innerText || '').split('\n').map(norm).filter((t) => t.length >= 4 && !(PRICE_RE.test(t) && t.length < 25) && !NOT_TITLE.test(t) && !BADGE_WORD.test(t)
+        && !(t.length > 25 && /(니다|어요|해요|세요)\.?$|[a-z]\.$/.test(t)) && !/^tooltip$/i.test(t));
       f.title = lines.sort((a, b) => b.length - a.length)[0] || '(제목 없음)';
     }
     // 화면 낭독용 '상품명' 앞에 붙은 배지·브랜드 글 떼기 ('공식상품너츠상품명 너츠 골전도…')
     if (/(상품명|제품명)\s*\S/.test(f.title)) f.title = f.title.replace(/^.*?(상품명|제품명)\s*/, '');
-    f.title = f.title.replace(/\s*(더\s*보기|새\s*창\s*이동|새창열기)$/, '');
+    f.title = f.title.replace(/\s*(더\s*보기|새\s*창\s*(에서\s*)?(이동|열기|열림)|새창열기|\(?opens? in (a )?new (window|tab)\)?)$/i, '');
     if (opts.detail) f.title = norm(titleElement()?.textContent) || pageTitle() || f.title;
 
     // 보낸 사람 자리: 브랜드·판매자·지역·극장 같은 짧은 글, 없으면 제목 첫 단어
     const senderEl = root.querySelector('[class*="brand" i],[class*="seller" i],[class*="store" i],[class*="mall" i],[class*="shop" i],[class*="location" i],[class*="area" i],[class*="place" i],[class*="venue" i],[class*="theater" i],[class*="airline" i],[class*="region" i]');
     // G마켓 '공식상품', '인증상품' 같은 화면 낭독용 말머리는 떼요
-    const unbadge = (t) => t && t.replace(/^(?:[가-힣]{2,5}\s*상품(?=\s*\S|$)\s*)+/, '');
+    const unbadge = (t) => t && t.replace(/^(?:[가-힣]{2,5}\s*상품(?=\s*\S|$)\s*)+/, '').replace(/^(스토어|판매자|상점|셀러|브랜드)(명|\s*이름)\s*:?\s*/, '').replace(/\s*(지도에서\s*(표시|보기)|지도\s*보기|show on map|view on map)$/i, '');
     const st = senderEl && unbadge(norm(senderEl.textContent));
-    const okSender = (s) => s && s.length >= 2 && s.length <= 16 && s !== f.title && !/\d.*(원|%)|[%₩]|^\d/.test(s) && !NOT_TITLE.test(s) && !BADGE_WORD.test(s);
+    const okSender = (s) => s && s.length >= 2 && s.length <= 16 && s !== f.title && !/\d.*(원|%)|[%₩]|^\d/.test(s) && !NOT_TITLE.test(s) && !BADGE_WORD.test(s)
+      // 화면 낭독용 칸 이름 ('상품명', '가격정보', '판매가', '할인율')
+      && !/^(구매|판매|구매\s*수|판매\s*수|.*평점|상품명|제품명|가격\s*정보|판매\s*가|할인\s*율|할인률|원가|정보|최저가|.*최저가|.*정보)$/.test(s);
     // 카드 맨 앞 짧은 줄이 브랜드인 사이트가 많아요 (오늘의집 '먼데이하우스', 무신사 '아워호프'). 배지 글은 건너뛰어요.
+    const shortLines = (root.innerText || '').split('\n').map((t) => unbadge(norm(t))).filter((t) => t && t.length <= 14 && okSender(t) && !/^[\d.,%()\s:+]+$/.test(t) && !/^tooltip$|\d|배송|도착|출발|할인|쿠폰|적립|혜택|포인트/i.test(t));
+    f.sender2 = shortLines[1] || ''; // 첫 줄이 기획전 이름일 때 쓸 다음 줄 ('겨울준비' 다음 '노운베러')
     const firstLine = (root.innerText || '').split('\n').map((t) => unbadge(norm(t))).find((t) => t && !BADGE_WORD.test(t) && !NOT_TITLE.test(t) && !/^[\d.,%()\s:+]+$/.test(t));
     const fromTitle = f.title.replace(/^\s*[\[(【][^\])】]{0,20}[\])】]\s*/, '').split(/[\s,\[\]()]/).find((w) => w.length >= 2);
     // 책: '홍길동 (지은이)'
@@ -437,10 +472,10 @@
     const authEls = [...root.querySelectorAll('[class*="auth" i],[class*="writer" i]')].map((e) => norm(e.textContent)).filter((t) => t && t.length <= 40);
     const authEl = (authEls.find((t) => /\s(저|저자|지음|글|공저|엮음)(\s|$)/.test(t)) || '').replace(/\s*(저|저자|지음|글|외|공저|엮음)(\s.*)?$/, '');
     const author = text.match(/([^\s|(),/]{1,12}(?:\s[^\s|(),/]{1,10})?)\s*\((?:지은이|저|글|엮은이|저자)\)/) || (authEl.length >= 2 && authEl.length <= 14 ? [authEl, authEl] : null);
-    const seller = text.match(/(?:판매자|셀러|판매처|스토어|seller|sold by)\s*:?\s*([^\s|·,]{2,14})/i);
+    const seller = text.match(/(?:판매자|셀러|판매처|스토어|상점|seller|sold by)(?:명|\s*이름)?\s*:?\s*([^\s|·,]{2,14})/i);
     if (author && !okSender(st)) { f.sender = author[1].replace(/\s*(저자|저|지음)$/, '').slice(0, 14); }
-    else if (seller && !okSender(st) && !/정보|등급|배송|직접/.test(seller[1])) { f.sender = seller[1]; }
-    else f.sender = (okSender(st) ? st : okSender(firstLine) && firstLine.length <= 14 && firstLine !== f.title ? firstLine : (fromTitle || '업무팀')).slice(0, 14);
+    else if (seller && !okSender(st) && okSender(seller[1]) && !/정보|등급|배송|직접|평점|찜|문의/.test(seller[1])) { f.sender = seller[1]; }
+    else f.sender = (okSender(st) ? st : okSender(firstLine) && firstLine.length <= 14 && firstLine !== f.title ? firstLine : (shortLines.find((t) => t !== f.title && !f.title.startsWith(t)) || fromTitle || '업무팀')).slice(0, 14);
 
     // 미리보기: 숫자 아닌 짧은 글 몇 개 (배송·위치·좌석 등)
     const pv = (root.innerText || '').split('\n').map(norm)
@@ -569,7 +604,7 @@
 
   function findReviews() {
     // 리뷰 목록: 글이 길고, 날짜가 있고, 같은 모양으로 반복되는 덩어리
-    const DATE_RE = /(20\d{2}|\d{2})[.\-/]\s?\d{1,2}[.\-/]\s?\d{1,2}|\d+\s*(일|주|개월|달)\s*전|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+20\d{2}|\d+\s*(days?|weeks?|months?|years?|hours?)\s*ago|지난\s*(\d+\s*)?(일|주|개월|달|년|해)|\d+\s*(시간|분|년)\s*전|어제|past\s*(\d+\s*)?(days?|weeks?|months?|year)|yesterday/i;
+    const DATE_RE = /(20\d{2}|\d{2})[.\-/]\s?\d{1,2}[.\-/]\s?\d{1,2}|\d+\s*(일|주|개월|달)\s*전|\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+20\d{2}|\d+\s*(days?|weeks?|months?|years?|hours?)\s*ago|지난\s*(\d+\s*)?(일|주|개월|달|년|해)|\d+\s*(시간|분|년)\s*전|어제|past\s*(\d+\s*)?(days?|weeks?|months?|year)|yesterday/i;
     let best = null;
     for (const el of DOC.body.querySelectorAll('*')) {
       if (el.id === 'mm-host' || el.children.length < 2) continue;
@@ -1471,7 +1506,7 @@
     }
     const cards = findCards();
     const seen = new Set();
-    state.items = cards.map((c) => extractFields(c)).filter((f) => f.title && !seen.has(f.id) && seen.add(f.id));
+    state.items = fixSenders(cards.map((c) => extractFields(c)).filter((f) => f.title && !seen.has(f.id) && seen.add(f.id)));
     state.detail = state.items.length ? null : extractDetail();
     // 이 페이지의 통화 (가장 많이 나온 것)
     const cc = {}; state.items.forEach((f) => f.cur && (cc[f.cur] = (cc[f.cur] || 0) + 1));
@@ -1566,7 +1601,7 @@
   }, true);
 
   // 시험용(확장프로그램이 아닌 곳에 직접 넣었을 때만): 내부를 들여다볼 수 있게
-  if (!hasChrome) window.__mmDebug = { findCards, extractFields, extractDetail, isDetailPage, siteSorts, siteMenu, state };
+  if (!hasChrome) window.__mmDebug = { findCards, extractFields, fixSenders, extractDetail, isDetailPage, siteSorts, siteMenu, state };
 
   window.__mmToggle = () => (!armed ? arm() : state.on ? showReal() : showDisguise());
 
