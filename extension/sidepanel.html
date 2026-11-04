@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>메일함 모드</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="logo">✉</span> 메일함 모드</div>
+  </header>
+
+  <section class="card site">
+    <div class="site-row">
+      <div>
+        <div class="host" id="host">-</div>
+        <div class="status" id="status">이 탭 상태를 확인하는 중이에요.</div>
+      </div>
+      <label class="switch big" title="이 사이트에서 켜기">
+        <input type="checkbox" id="armed"><span></span>
+      </label>
+    </div>
+    <div class="view-row" id="viewRow" hidden>
+      <button class="seg-btn" data-view="disguise">위장 화면</button>
+      <button class="seg-btn" data-view="real">원래 화면</button>
+    </div>
+    <div class="unsupported" id="unsupported" hidden>이 페이지에서는 쓸 수 없어요. (크롬 설정 화면, 웹스토어 등)</div>
+    <div class="opt-row override-row" id="overrideRow">
+      <div>
+        <div class="opt-title">이 사이트만 따로 설정</div>
+        <div class="hint">켜면 아래 설정이 이 사이트에만 적용돼요. 끄면 모든 사이트 공통 설정을 써요.</div>
+      </div>
+      <label class="switch"><input type="checkbox" id="override"><span></span></label>
+    </div>
+  </section>
+
+  <div class="scope" id="scope">모든 사이트 공통 설정</div>
+
+  <section class="card">
+    <h3>템플릿</h3>
+    <div class="tpls">
+      <button class="tpl" data-tpl="mail">
+        <div class="mini mail"><i></i><i></i><i></i><i></i></div>
+        <span>메일함</span>
+      </button>
+      <button class="tpl" data-tpl="sheet">
+        <div class="mini sheet"><i></i><i></i><i></i><i></i></div>
+        <span>스프레드시트</span>
+      </button>
+      <button class="tpl" data-tpl="approval">
+        <div class="mini approval"><i></i><i></i><i></i><i></i></div>
+        <span>결재함</span>
+      </button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>숫자·이미지</h3>
+    <div class="seg" data-key="strength">
+      <button data-v="weak">숫자 그대로</button>
+      <button data-v="normal">숫자 위장</button>
+      <button data-v="strong">이미지도 숨김</button>
+    </div>
+    <p class="hint" id="strengthHint"></p>
+    <div class="opt-label" style="margin-top:12px">메뉴·칸 이름</div>
+    <div class="seg two" data-key="labels">
+      <button data-v="disguise">위장 이름</button>
+      <button data-v="real">원래 문구</button>
+    </div>
+    <p class="hint">위장 이름이어도 마우스를 올리면 진짜 이름(예: 거래수 → 리뷰 수)이 보여요.</p>
+    <div class="range-row">
+      <label for="thumb">목록 이미지</label>
+      <input type="range" id="thumb" data-key="thumb" min="14" max="120" step="2">
+      <output id="thumbOut"></output>
+    </div>
+    <div class="range-row">
+      <label for="zoom">마우스 올렸을 때</label>
+      <input type="range" id="zoom" data-key="zoom" min="160" max="700" step="20">
+      <output id="zoomOut"></output>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>목록에서 줄을 누르면</h3>
+    <div class="seg two" data-key="rowClick">
+      <button data-v="preview">미리보기 팝업</button>
+      <button data-v="open">바로 들어가기</button>
+    </div>
+    <p class="hint">미리보기는 상품 페이지를 뒤에서 열어 읽어요. 리뷰 칸(💬·거래수·의견)을 누르면 그 줄 아래에 리뷰가 펼쳐져요.</p>
+  </section>
+
+  <section class="card">
+    <h3>보여줄 것</h3>
+    <div class="opt-label">함께 보면 좋은 상품 · 추천 · 관련 상품</div>
+    <div class="seg" data-key="related">
+      <button data-v="show">보이기</button>
+      <button data-v="collapse">접어두기</button>
+      <button data-v="hide">숨기기</button>
+    </div>
+    <div class="opt-label">광고 상품</div>
+    <div class="seg two" data-key="ads">
+      <button data-v="show">보이기</button>
+      <button data-v="hide">숨기기</button>
+    </div>
+    <div class="opt-label">리뷰 (메일함에서는 답장으로)</div>
+    <div class="seg two" data-key="reviews">
+      <button data-v="show">보이기</button>
+      <button data-v="hide">숨기기</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="opt-row">
+      <div>
+        <div class="opt-title">휠로 바로 전환</div>
+        <div class="hint">원래 화면에서 휠을 굴리면 위장 화면으로 바뀌어요. 진짜 스크롤은 <kbd>Shift</kbd>+휠.</div>
+      </div>
+      <label class="switch"><input type="checkbox" id="wheel"><span></span></label>
+    </div>
+    <div class="opt-row">
+      <div>
+        <div class="opt-title"><kbd>`</kbd> 키 하나로 전환</div>
+        <div class="hint">숫자 1 왼쪽 키. 위장 화면 ↔ 원래 화면. 검색창에 글자를 칠 때는 동작하지 않아요.</div>
+      </div>
+      <label class="switch"><input type="checkbox" id="quickKey"><span></span></label>
+    </div>
+    <div class="opt-row">
+      <div>
+        <div class="opt-title"><kbd>Esc</kbd>로 바로 숨기기</div>
+        <div class="hint">원래 화면에서 Esc를 누르면 위장 화면으로 바뀌어요.</div>
+      </div>
+      <label class="switch"><input type="checkbox" id="escHide"><span></span></label>
+    </div>
+    <div class="opt-row">
+      <div>
+        <div class="opt-title">어디서나 쓰는 단축키</div>
+        <div class="hint"><kbd id="kbd">Alt+Shift+M</kbd> 꺼진 사이트 켜기·전환 · 페이지 밖(주소창 등)에서도 동작</div>
+      </div>
+      <button class="link" id="shortcuts">바꾸기</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>켜 둔 사이트 <span class="count" id="siteCount"></span></h3>
+    <ul class="sites" id="sites"></ul>
+    <p class="hint" id="noSites">아직 없어요. 위 스위치로 켜면 여기에 모여요.</p>
+  </section>
+
+  <footer>모든 정보는 이 PC에만 저장돼요. 화면 모양만 바꾸고, 방문 기록이나 회사 네트워크 기록은 숨기지 못해요.</footer>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

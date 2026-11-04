@@ -1,0 +1,115 @@
+:root {
+  --bg: #f6f8fc;
+  --card: #ffffff;
+  --text: #202124;
+  --sub: #5f6368;
+  --line: #e3e6ea;
+  --accent: #1a73e8;
+  --accent-soft: #d3e3fd;
+  --on: #1a73e8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1f1f1f;
+    --card: #2a2a2a;
+    --text: #e8eaed;
+    --sub: #9aa0a6;
+    --line: #3c4043;
+    --accent: #8ab4f8;
+    --accent-soft: #394457;
+    --on: #8ab4f8;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 12px 12px 20px;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+}
+header { padding: 4px 4px 12px; }
+.brand { display: flex; align-items: center; gap: 8px; font-size: 16px; color: var(--sub); }
+.logo { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 15px; }
+.card { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 10px; border: 1px solid var(--line); }
+h3 { margin: 0 0 10px; font-size: 13px; font-weight: 700; }
+.count { color: var(--sub); font-weight: 400; }
+.hint { color: var(--sub); font-size: 12px; margin: 4px 0 0; }
+kbd { font: 11px Consolas, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+
+/* 사이트 카드 */
+.site-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.host { font-size: 15px; font-weight: 700; word-break: break-all; }
+.status { color: var(--sub); font-size: 12px; margin-top: 2px; }
+.view-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+.seg-btn { border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 10px; padding: 8px; font: inherit; cursor: pointer; }
+.seg-btn.on { background: var(--accent-soft); border-color: var(--accent); font-weight: 700; }
+.unsupported { margin-top: 10px; color: #d93025; font-size: 12px; }
+
+/* 스위치 */
+.switch { position: relative; display: inline-block; width: 40px; height: 22px; flex: none; }
+.switch.big { width: 48px; height: 26px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch span { position: absolute; inset: 0; background: #bdc1c6; border-radius: 99px; transition: .15s; cursor: pointer; }
+.switch span::before { content: ""; position: absolute; width: 18px; height: 18px; left: 2px; top: 2px; background: #fff; border-radius: 50%; transition: .15s; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.switch.big span::before { width: 22px; height: 22px; }
+.switch input:checked + span { background: var(--on); }
+.switch input:checked + span::before { transform: translateX(18px); }
+.switch.big input:checked + span::before { transform: translateX(22px); }
+.switch input:disabled + span { opacity: .4; cursor: default; }
+
+/* 템플릿 카드 */
+.tpls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tpl { border: 2px solid var(--line); background: var(--bg); border-radius: 12px; padding: 8px 6px 6px; cursor: pointer; color: var(--text); font: inherit; font-size: 12px; }
+.tpl.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+.mini { height: 54px; border-radius: 6px; background: #fff; border: 1px solid #e0e0e0; padding: 5px; display: grid; gap: 4px; margin-bottom: 6px; }
+.mini i { display: block; height: 6px; border-radius: 3px; background: #dfe3e8; }
+.mini.mail i:nth-child(odd) { background: #c9d3e0; width: 90%; }
+.mini.mail i:first-child { border-left: 8px solid #4a7bd0; }
+.mini.sheet { background: repeating-linear-gradient(90deg, #fff 0 12px, #e2e2e2 12px 13px), #fff; }
+.mini.sheet i { background: transparent; border-bottom: 1px solid #e2e2e2; border-radius: 0; height: 7px; }
+.mini.sheet i:first-child { background: #e6f4ea; }
+.mini.approval i:first-child { background: #6b5bd6; height: 4px; }
+.mini.approval i:nth-child(n+2) { background: linear-gradient(90deg, #dfe3e8 0 70%, transparent 70% 78%, #ffd8b5 78%); }
+
+/* 세그먼트 */
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--bg); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; color: var(--text); padding: 7px 4px; border-radius: 8px; font: inherit; font-size: 12px; cursor: pointer; }
+.seg button.on { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.15); font-weight: 700; }
+
+.seg.two { grid-template-columns: repeat(2, 1fr); }
+.opt-label { font-size: 12px; color: var(--sub); margin: 10px 0 5px; }
+.opt-label:first-of-type { margin-top: 0; }
+.override-row { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; }
+.scope { font-size: 12px; color: var(--sub); padding: 2px 6px 8px; }
+.scope.site { color: var(--accent); font-weight: 700; }
+.opt-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0; }
+.opt-row + .opt-row { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 6px; }
+.opt-title { font-weight: 700; }
+.link { border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; flex: none; }
+
+.sites { list-style: none; margin: 0; padding: 0; }
+.sites li { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.sites li:last-child { border-bottom: 0; }
+.sites button { border: 0; background: none; color: var(--sub); cursor: pointer; font-size: 14px; }
+.sites button:hover { color: #d93025; }
+
+footer { color: var(--sub); font-size: 11px; padding: 4px 6px; }
+
+/* 이미지 크기 슬라이더 */
+.range-row { display: grid; grid-template-columns: 92px 1fr 46px; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--sub); }
+.range-row input { width: 100%; accent-color: var(--accent); }
+.range-row output { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+
+/* 좁은 폭에서도 잘 보이게 */
+@media (max-width: 300px) {
+  body { padding: 8px 8px 14px; font-size: 12px; }
+  .card { padding: 10px; border-radius: 12px; margin-bottom: 8px; }
+  .tpls { gap: 5px; }
+  .mini { height: 38px; }
+  .tpl { font-size: 11px; padding: 6px 4px 4px; }
+  .seg button { font-size: 11px; padding: 6px 2px; }
+  .range-row { grid-template-columns: 1fr 42px; }
+  .range-row label { grid-column: 1 / -1; }
+  .hint { font-size: 11px; }
+}
