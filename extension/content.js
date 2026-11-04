@@ -393,7 +393,9 @@
     }
 
     // 평점: aria-label 숫자, '평점/별점/★ 4.5', 또는 짧은 '4.5' 덩어리
-    const aria = [...root.querySelectorAll('[aria-label]')].map((e) => e.getAttribute('aria-label')).find((a) => /^(?:별점|평점)\s*\d(?:\.\d)?(?:점)?$|^\d\.\d$|^\d(?:\.\d)?점$/.test(norm(a))); // 맨 숫자 '1'은 사진 번호일 수 있어요
+    // 맨 숫자 aria('5')는 별 칸 근처일 때만 평점으로 봐요 (사진 번호 '1'과 구별)
+    const nearStar = (e) => /star|rating|별/i.test(String(e.className || '') + ' ' + String(e.parentElement?.className || '')) || !!e.querySelector('[class*="star" i],[class*="rating" i]');
+    const aria = [...root.querySelectorAll('[aria-label]')].filter((e) => { const a = norm(e.getAttribute('aria-label')); return /^(?:별점|평점)\s*\d(?:\.\d)?(?:점)?$|^\d\.\d$|^\d(?:\.\d)?점$/.test(a) || (/^\d$/.test(a) && nearStar(e)); }).map((e) => e.getAttribute('aria-label'))[0];
     if (aria) f.rating = num(aria.match(/\d(?:\.\d)?/)[0]);
     if (f.rating == null && (m = text.match(/(?:★|평점|별점)\s*(\d{1,2}(?:\.\d{1,2})?)/))) f.rating = num(m[1]);
     if (f.rating == null && (m = (text + ' ' + [...root.querySelectorAll('[aria-label],[title]')].map((e) => e.getAttribute('aria-label') || e.title).join(' ')).match(/([0-5](?:\.\d)?)\s*out of\s*5/i))) f.rating = num(m[1]);
