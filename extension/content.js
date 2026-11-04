@@ -305,7 +305,7 @@
 
   // 제목·판매자가 될 수 없는 글 (리뷰 수, 배지 등)
   const NOT_TITLE = /^(리뷰|(일반|공식|인증|브랜드)\s*상품|아이템\s*카드|후기|평점|별점|상품평|구매평|배송|무료\s*배송|배송비|찜|좋아요|쿠폰|광고|AD|Sponsored|품절|세일|특가|오늘\s*드림|오늘\s*출발|내일\s*도착|더\s*보기|자세히|장바구니|바로\s*구매|구매하기|\(?\d)/i;
-  const BADGE_WORD = /^(최다\s*판매|추가\s*구매\s*선택|프라임.{0,10}|More buying choices|Prime.{0,12}|Climate Pledge.*|탄소.{0,6}|관련|Related|후원|후원\s*광고|종합\s*추천|아마존\s*추천|Amazon'?s?\s*Choice|Overall\s*Pick|Limited\s*time\s*deal|기간\s*한정\s*(딜|할인)|새\s*창\s*(에서\s*)?(이동|열기|열림)|opens? in (a )?new (window|tab)|최고|우수|매우\s*좋음|아주\s*좋음|좋음|훌륭함|만족|매우\s*만족|Exceptional|Excellent|Very good|Good|Wonderful|Superb|Fabulous|Pleasant|미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
+  const BADGE_WORD = /^(게스트\s*선호|슈퍼\s*호스트|Guest\s*favou?rite|Superhost|최다\s*판매|추가\s*구매\s*선택|프라임.{0,10}|More buying choices|Prime.{0,12}|Climate Pledge.*|탄소.{0,6}|관련|Related|후원|후원\s*광고|종합\s*추천|아마존\s*추천|Amazon'?s?\s*Choice|Overall\s*Pick|Limited\s*time\s*deal|기간\s*한정\s*(딜|할인)|새\s*창\s*(에서\s*)?(이동|열기|열림)|opens? in (a )?new (window|tab)|최고|우수|매우\s*좋음|아주\s*좋음|좋음|훌륭함|만족|매우\s*만족|Exceptional|Excellent|Very good|Good|Wonderful|Superb|Fabulous|Pleasant|미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
 
   // 줄 대부분이 같은 보낸이('겨울준비')면 그건 기획전 이름이에요. 그 줄들은 다음 짧은 줄(브랜드)을 써요.
   function fixSenders(items) {
@@ -385,12 +385,20 @@
     const discText = text.replace(/(예매율|점유율|적립률?|달성률?|좌석\s*점유|에그\s*지수|골든\s*에그|만족도|신선도|관람평|Tomatometer|Audience Score)\s*\??\s*[\d.]+\s*%/gi, '');
     if ((m = discText.match(/(\d{1,2})\s*%/))) f.discount = +m[1];
     else if (f.orig && f.price && f.orig > f.price) f.discount = Math.round((1 - f.price / f.orig) * 100);
+    if (!f.orig && f.discount && f.price) {
+      const lo = prices.filter((p) => !p.per && p.v < f.price).map((p) => p.v).sort((a, b) => b - a)[0];
+      if (lo && Math.abs(1 - lo / f.price - f.discount / 100) < 0.03) { f.orig = f.price; f.price = lo; }
+    }
 
     // 평점: aria-label 숫자, '평점/별점/★ 4.5', 또는 짧은 '4.5' 덩어리
     const aria = [...root.querySelectorAll('[aria-label]')].map((e) => e.getAttribute('aria-label')).find((a) => /^(?:별점|평점)?\s*\d(?:\.\d)?(?:점)?$/.test(norm(a)));
     if (aria) f.rating = num(aria.match(/\d(?:\.\d)?/)[0]);
     if (f.rating == null && (m = text.match(/(?:★|평점|별점)\s*(\d{1,2}(?:\.\d{1,2})?)/))) f.rating = num(m[1]);
     if (f.rating == null && (m = (text + ' ' + [...root.querySelectorAll('[aria-label],[title]')].map((e) => e.getAttribute('aria-label') || e.title).join(' ')).match(/([0-5](?:\.\d)?)\s*out of\s*5/i))) f.rating = num(m[1]);
+    if (f.rating == null) {
+      const sc = [...root.querySelectorAll('[class*="score" i],[class*="rating" i],[class*="grade" i]')].map((e) => norm(e.textContent)).find((t) => /^(10|\d)(\.\d{1,2})?$/.test(t));
+      if (sc) f.rating = num(sc);
+    }
     if (f.rating == null) {
       for (const el of root.querySelectorAll('span,em,strong,div,b')) {
         const t = norm(el.textContent);
@@ -437,7 +445,10 @@
     const cand = [];
     const add = (t, s) => { t = norm(t); if (t) cand.push({ t, s }); };
     root.querySelectorAll('h1,h2,h3,h4,h5').forEach((e) => add(e.textContent, 3));
-    root.querySelectorAll('[class*="title" i],[class*="name" i],[class*="tit" i]').forEach((e) => add(e.textContent, 2));
+    // 객실·옵션 이름('스탠다드 트윈룸')보다 숙소·상품 이름이 먼저예요
+    root.querySelectorAll('[class*="title" i],[class*="name" i],[class*="tit" i]').forEach((e) => add(e.textContent, /room|option|variant|sku|plan|객실/i.test(String(e.className)) ? 0.8 : 2));
+    root.querySelectorAll('[data-testid*="name" i]').forEach((e) => add(e.textContent, 3));
+    root.querySelectorAll('[data-testid*="title" i]').forEach((e) => add(e.textContent, 2.5));
     root.querySelectorAll('strong').forEach((e) => add(e.textContent, 1));
     root.querySelectorAll('a[href] b, a[href] strong').forEach((e) => add(e.textContent, 2));
     root.querySelectorAll('a[href]').forEach((e) => { if (!e.querySelector('img')) add(e.textContent, 0.5); });
@@ -445,10 +456,13 @@
     const good = cand
       .filter(({ t, s }) => t.length >= (s >= 3 ? 2 : 4) && t.length <= 140 && !(PRICE_RE.test(t) && t.length < 25) && !/^\d/.test(t) && !NOT_TITLE.test(t))
       .filter(({ t }) => !/^[\[(【][^\])】]*[\])】]$/.test(t)) // '[국내도서]' 같은 말머리만 있는 글
-      .filter(({ t }) => !/^\S{0,8}\s?(아이템|상품)\s*카드$/.test(t)) // G마켓 '스마일상품 아이템카드' (화면 낭독용 이름)
+      .filter(({ t }) => !/^\S{0,8}\s?(아이템|상품)\s*카드$/.test(t))
+      .filter(({ t }) => !/\d+\s*장\s*중\s*\d+\s*번째|^(photo|image)?\s*\d+\s*(of|\/)\s*\d+/i.test(t))
+      .filter(({ t }) => !/^((hotel|room|product|item|main|cover|thumb)\s*)?(overview\s*)?(picture|image|photo|img|thumbnail)$|^(상품|대표|숙소|객실)?\s*(이미지|사진|썸네일)$/i.test(t)) // G마켓 '스마일상품 아이템카드' (화면 낭독용 이름)
       .map(({ t, s }) => ({ t, s: s - (/^(공연기간|관람기간|기간|장소|일시|위치|주소|출발|도착)/.test(t) || /~/.test(t) ? 5 : 0)
         // 설명 문장('…산정됩니다.', 'Prices include taxes.')은 제목이 아니에요 (아고다 말풍선)
-        - (t.length > 25 && /(니다|어요|해요|세요)\.?$|[a-z]\.$/.test(t) ? 6 : 0) }));
+        - (t.length > 25 && /(니다|어요|해요|세요)\.?$|[a-z]\.$/.test(t) ? 6 : 0)
+        - (PRICE_RE.test(t) ? 2 : 0) }));
     if (good.length) f.title = good.sort((a, b) => b.s - a.s || b.t.length - a.t.length)[0].t;
     if (!f.title) {
       const lines = (root.innerText || '').split('\n').map(norm).filter((t) => t.length >= 4 && !(PRICE_RE.test(t) && t.length < 25) && !NOT_TITLE.test(t) && !BADGE_WORD.test(t)
@@ -464,12 +478,15 @@
     const senderEl = root.querySelector('[class*="brand" i],[class*="seller" i],[class*="store" i],[class*="mall" i],[class*="shop" i],[class*="location" i],[class*="area" i],[class*="place" i],[class*="venue" i],[class*="theater" i],[class*="airline" i],[class*="region" i]');
     // G마켓 '공식상품', '인증상품' 같은 화면 낭독용 말머리는 떼요
     const unbadge = (t) => t && t.replace(/^(?:[가-힣]{2,5}\s*상품(?=\s*\S|$)\s*)+/, '').replace(/^(스토어|판매자|상점|셀러|브랜드)(명|\s*이름)\s*:?\s*/, '').replace(/\s*(지도에서\s*(표시|보기)|지도\s*보기|show on map|view on map)$/i, '');
-    const st = senderEl && unbadge(norm(senderEl.textContent));
+    let st = senderEl && unbadge(norm(senderEl.textContent));
     const okSender = (s) => s && s.length >= 2 && s.length <= 16 && s !== f.title && !/\d.*(원|%)|[%₩]|^\d/.test(s) && !NOT_TITLE.test(s) && !BADGE_WORD.test(s)
       // 화면 낭독용 칸 이름 ('상품명', '가격정보', '판매가', '할인율')
       && !/^[,+·|]|[:：]$/.test(s) && !/^(제한된\s*시간|한정\s*시간|일반\s*가격|정가|가격)/.test(s) && !/색상|패턴|제품\s*페이지|colors?|options?|more\b/i.test(s)
       && !/찜\s*하기|순위|^찜$|wishlist|add to (list|favorites)/i.test(s)
+      && !/번째\s*사진|장\s*중|수수료|한마디|신규\s*(숙소|등록)|무료\s*취소|취소\s*가능|free cancellation|new listing/i.test(s)
       && !/^(구매|판매|구매\s*수|판매\s*수|.*평점|상품명|제품명|가격\s*정보|판매\s*가|할인\s*율|할인률|원가|정보|최저가|.*최저가|.*정보)$/.test(s);
+    // data-testid 제목 칸 (에어비앤비 '애월읍의 펜션'): 이름 칸을 제목으로 썼으면 이쪽이 보낸이 자리예요
+    if (!okSender(st)) { const tt = norm(root.querySelector('[data-testid*="title" i]')?.textContent || ''); if (okSender(tt)) st = tt; }
     // 카드 맨 앞 짧은 줄이 브랜드인 사이트가 많아요 (오늘의집 '먼데이하우스', 무신사 '아워호프'). 배지 글은 건너뛰어요.
     const btnText = new Set([...root.querySelectorAll('button,[role="button"],[class*="badge" i],[class*="label" i],[class*="tag" i],[class*="btn" i],[class*="flag" i]')]
       .map((e) => unbadge(norm(e.textContent))).filter((t) => t && t.length <= 20));
