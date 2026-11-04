@@ -203,9 +203,9 @@
     let m;
     // 1) data-rating="5", data-score="4.5" 같은 속성
     for (const e of all) {
-      for (const a of ['data-rating', 'data-score', 'data-rate', 'data-star', 'data-stars', 'data-value', 'data-grade']) {
+      for (const a of ['data-rating', 'data-score', 'data-rate', 'data-star', 'data-stars', 'data-value', 'data-grade', 'rating', 'score']) {
         const v = e.getAttribute?.(a);
-        if (v != null && /^\d(\.\d+)?$/.test(v.trim()) && (a !== 'data-value' || starish(e))) return +v;
+        if (v != null && /^\d(\.\d+)?$/.test(v.trim()) && (!/^(data-value|rating|score)$/.test(a) || starish(e) || /star|rating|review/i.test(e.tagName))) return +v;
       }
     }
     // 2) 화면 낭독용 글: '별 5개 중 4개', '5점 만점에 4점', '4 out of 5', '별점 4점', '4 stars', 'Rated 4'
@@ -305,7 +305,7 @@
 
   // 제목·판매자가 될 수 없는 글 (리뷰 수, 배지 등)
   const NOT_TITLE = /^(리뷰|(일반|공식|인증|브랜드)\s*상품|아이템\s*카드|후기|평점|별점|상품평|구매평|배송|무료\s*배송|배송비|찜|좋아요|쿠폰|광고|AD|Sponsored|품절|세일|특가|오늘\s*드림|오늘\s*출발|내일\s*도착|더\s*보기|자세히|장바구니|바로\s*구매|구매하기|\(?\d)/i;
-  const BADGE_WORD = /^(게스트\s*선호|슈퍼\s*호스트|Guest\s*favou?rite|Superhost|최다\s*판매|추가\s*구매\s*선택|프라임.{0,10}|More buying choices|Prime.{0,12}|Climate Pledge.*|탄소.{0,6}|관련|Related|후원|후원\s*광고|종합\s*추천|아마존\s*추천|Amazon'?s?\s*Choice|Overall\s*Pick|Limited\s*time\s*deal|기간\s*한정\s*(딜|할인)|새\s*창\s*(에서\s*)?(이동|열기|열림)|opens? in (a )?new (window|tab)|최고|우수|매우\s*좋음|아주\s*좋음|좋음|훌륭함|만족|매우\s*만족|Exceptional|Excellent|Very good|Good|Wonderful|Superb|Fabulous|Pleasant|미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
+  const BADGE_WORD = /^(Popular now|Preview seller|Star Seller|Bestseller|Etsy'?s Pick|More like this|Add to cart|게스트\s*선호|슈퍼\s*호스트|Guest\s*favou?rite|Superhost|최다\s*판매|추가\s*구매\s*선택|프라임.{0,10}|More buying choices|Prime.{0,12}|Climate Pledge.*|탄소.{0,6}|관련|Related|후원|후원\s*광고|종합\s*추천|아마존\s*추천|Amazon'?s?\s*Choice|Overall\s*Pick|Limited\s*time\s*deal|기간\s*한정\s*(딜|할인)|새\s*창\s*(에서\s*)?(이동|열기|열림)|opens? in (a )?new (window|tab)|최고|우수|매우\s*좋음|아주\s*좋음|좋음|훌륭함|만족|매우\s*만족|Exceptional|Excellent|Very good|Good|Wonderful|Superb|Fabulous|Pleasant|미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
 
   // 줄 대부분이 같은 보낸이('겨울준비')면 그건 기획전 이름이에요. 그 줄들은 다음 짧은 줄(브랜드)을 써요.
   function fixSenders(items) {
@@ -391,12 +391,12 @@
     }
 
     // 평점: aria-label 숫자, '평점/별점/★ 4.5', 또는 짧은 '4.5' 덩어리
-    const aria = [...root.querySelectorAll('[aria-label]')].map((e) => e.getAttribute('aria-label')).find((a) => /^(?:별점|평점)?\s*\d(?:\.\d)?(?:점)?$/.test(norm(a)));
+    const aria = [...root.querySelectorAll('[aria-label]')].map((e) => e.getAttribute('aria-label')).find((a) => /^(?:별점|평점)\s*\d(?:\.\d)?(?:점)?$|^\d\.\d$|^\d(?:\.\d)?점$/.test(norm(a))); // 맨 숫자 '1'은 사진 번호일 수 있어요
     if (aria) f.rating = num(aria.match(/\d(?:\.\d)?/)[0]);
     if (f.rating == null && (m = text.match(/(?:★|평점|별점)\s*(\d{1,2}(?:\.\d{1,2})?)/))) f.rating = num(m[1]);
     if (f.rating == null && (m = (text + ' ' + [...root.querySelectorAll('[aria-label],[title]')].map((e) => e.getAttribute('aria-label') || e.title).join(' ')).match(/([0-5](?:\.\d)?)\s*out of\s*5/i))) f.rating = num(m[1]);
     if (f.rating == null) {
-      const sc = [...root.querySelectorAll('[class*="score" i],[class*="rating" i],[class*="grade" i]')].map((e) => norm(e.textContent)).find((t) => /^(10|\d)(\.\d{1,2})?$/.test(t));
+      const sc = [...root.querySelectorAll('[class*="score" i],[class*="rating" i],[class*="grade" i]')].map((e) => norm(e.textContent)).find((t) => /^(10|\d)\.\d{1,2}$/.test(t));
       if (sc) f.rating = num(sc);
     }
     if (f.rating == null) {
@@ -423,6 +423,12 @@
     else if ((m = text.match(/([\d,]+)\s*(?:명|개|건)?\s*(?:의\s*)?(?:이용\s*|숙박\s*|투숙\s*)?(?:리뷰|후기|상품평|평가|참여)/))) f.reviews = num(m[1]);
     else if ((m = text.match(/([\d,.]+)\s*(K|M)?\+?\s*(?:global\s*)?(?:ratings?|reviews?|product ratings)/i))) f.reviews = num(m[1]) * (m[2] ? (/k/i.test(m[2]) ? 1000 : 1e6) : 1);
     else if ((m = text.match(/\(\s*([\d,.]+)\s*(만|천|K|M)?\+?\s*\)(?!\s*원)/i))) f.reviews = Math.round(num(m[1]) * ({ 만: 1e4, 천: 1e3, k: 1e3, m: 1e6 }[(m[2] || '').toLowerCase()] || 1));
+    // 속성에 든 리뷰 수 (Etsy review-count-text="(1.5k)")
+    if (f.reviews == null) {
+      const rc = root.querySelector('[review-count-text],[data-review-count],[data-reviews-count],[data-review-total]');
+      const v = rc && (rc.getAttribute('review-count-text') || rc.getAttribute('data-review-count') || rc.getAttribute('data-reviews-count') || rc.getAttribute('data-review-total') || '');
+      if ((m = v && v.match(/([\d.,]+)\s*(k|m|만|천)?/i))) f.reviews = Math.round(num(m[1]) * ({ k: 1e3, m: 1e6, 만: 1e4, 천: 1e3 }[(m[2] || '').toLowerCase()] || 1));
+    }
     if (f.reviews != null && f.reviews === f.price) f.reviews = null;
 
     // 판매수: "1,234개 구매", "구매 1만+", "500명 예약", "누적판매 3,000"
@@ -499,7 +505,8 @@
     const authEls = [...root.querySelectorAll('[class*="auth" i],[class*="writer" i]')].map((e) => norm(e.textContent)).filter((t) => t && t.length <= 40);
     const authEl = (authEls.find((t) => /\s(저|저자|지음|글|공저|엮음)(\s|$)/.test(t)) || '').replace(/\s*(저|저자|지음|글|외|공저|엮음)(\s.*)?$/, '');
     const author = text.match(/([^\s|(),/]{1,12}(?:\s[^\s|(),/]{1,10})?)\s*\((?:지은이|저|글|엮은이|저자)\)/) || (authEl.length >= 2 && authEl.length <= 14 ? [authEl, authEl] : null);
-    const seller = text.match(/(?:판매자|셀러|판매처|스토어|상점|seller|sold by)(?:명|\s*이름)?\s*:?\s*([^\s|·,]{2,14})/i);
+    const seller = text.match(/(?:판매자|셀러|판매처|스토어|상점|seller|sold by|from shop)(?:명|\s*이름)?\s*:?\s*([^\s|·,]{2,14})/i)
+      || text.match(/(?:^|[・·|]\s*|\s)By\s+([A-Z0-9][\w.&'-]{1,20})/);
     if (author && !okSender(st)) { f.sender = author[1].replace(/\s*(저자|저|지음)$/, '').slice(0, 14); }
     else if (seller && !okSender(st) && okSender(seller[1]) && !/정보|등급|배송|직접|평점|찜|문의/.test(seller[1])) { f.sender = seller[1]; }
     else f.sender = (okSender(st) ? st : okSender(firstLine) && firstLine.length <= 14 && firstLine !== f.title ? firstLine : (((f.senderLine = shortLines.find((t) => t !== f.title && !f.title.startsWith(t)))) || fromTitle || '업무팀')).slice(0, 14);
