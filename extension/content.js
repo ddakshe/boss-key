@@ -96,7 +96,7 @@
   function looksLikeCard(el) {
     const r = el.getBoundingClientRect();
     if (r.width < 60 || r.height < 40) return false;
-    const hasLink = el.tagName === 'A' || el.querySelector('a[href]');
+    const hasLink = el.tagName === 'A' || el.querySelector('a[href]') || (el.querySelector('img') && el.querySelector('button,[role="button"]'));
     const t = el.innerText || '';
     return hasLink && t.length > 4 && t.length < 1500;
   }
@@ -305,12 +305,18 @@
 
   // 제목·판매자가 될 수 없는 글 (리뷰 수, 배지 등)
   const NOT_TITLE = /^(리뷰|(일반|공식|인증|브랜드)\s*상품|아이템\s*카드|후기|평점|별점|상품평|구매평|배송|무료\s*배송|배송비|찜|좋아요|쿠폰|광고|AD|Sponsored|품절|세일|특가|오늘\s*드림|오늘\s*출발|내일\s*도착|더\s*보기|자세히|장바구니|바로\s*구매|구매하기|\(?\d)/i;
-  const BADGE_WORD = /^(새\s*창\s*(에서\s*)?(이동|열기|열림)|opens? in (a )?new (window|tab)|최고|우수|매우\s*좋음|아주\s*좋음|좋음|훌륭함|만족|매우\s*만족|Exceptional|Excellent|Very good|Good|Wonderful|Superb|Fabulous|Pleasant|미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
+  const BADGE_WORD = /^(최다\s*판매|추가\s*구매\s*선택|프라임.{0,10}|More buying choices|Prime.{0,12}|Climate Pledge.*|탄소.{0,6}|관련|Related|후원|후원\s*광고|종합\s*추천|아마존\s*추천|Amazon'?s?\s*Choice|Overall\s*Pick|Limited\s*time\s*deal|기간\s*한정\s*(딜|할인)|새\s*창\s*(에서\s*)?(이동|열기|열림)|opens? in (a )?new (window|tab)|최고|우수|매우\s*좋음|아주\s*좋음|좋음|훌륭함|만족|매우\s*만족|Exceptional|Excellent|Very good|Good|Wonderful|Superb|Fabulous|Pleasant|미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
 
   // 줄 대부분이 같은 보낸이('겨울준비')면 그건 기획전 이름이에요. 그 줄들은 다음 짧은 줄(브랜드)을 써요.
   function fixSenders(items) {
     if (items.length < 6) return items;
     const cnt = {};
+    for (const f of items) cnt[f.sender] = (cnt[f.sender] || 0) + 1;
+    for (const [s, n] of Object.entries(cnt)) {
+      const rows = items.filter((f) => f.sender === s && f.senderLine === s);
+      if (n >= 4 && n >= items.length * 0.25 && rows.length === n && !rows.some((f) => f.title.includes(s))) rows.forEach((f) => { f.sender = f.senderT || f.sender; });
+    }
+    for (const k of Object.keys(cnt)) delete cnt[k];
     for (const f of items) cnt[f.sender] = (cnt[f.sender] || 0) + 1;
     for (const [s, n] of Object.entries(cnt)) {
       if (n < items.length * 0.3) continue;
@@ -376,7 +382,7 @@
     if (struck.length) f.orig = Math.max(...struck.map((p) => p.v));
 
     let m;
-    const discText = text.replace(/(예매율|점유율|적립률?|달성률?|좌석\s*점유)\s*[\d.]+\s*%/g, '');
+    const discText = text.replace(/(예매율|점유율|적립률?|달성률?|좌석\s*점유|에그\s*지수|골든\s*에그|만족도|신선도|관람평|Tomatometer|Audience Score)\s*\??\s*[\d.]+\s*%/gi, '');
     if ((m = discText.match(/(\d{1,2})\s*%/))) f.discount = +m[1];
     else if (f.orig && f.price && f.orig > f.price) f.discount = Math.round((1 - f.price / f.orig) * 100);
 
@@ -408,14 +414,14 @@
     else if ((m = text.match(/(?:리뷰|후기|상품평|평가|review)s?\s*\(?\s*([\d,]+)(?![\d,])(?!\s*[원%])/i))) f.reviews = num(m[1]);
     else if ((m = text.match(/([\d,]+)\s*(?:명|개|건)?\s*(?:의\s*)?(?:이용\s*|숙박\s*|투숙\s*)?(?:리뷰|후기|상품평|평가|참여)/))) f.reviews = num(m[1]);
     else if ((m = text.match(/([\d,.]+)\s*(K|M)?\+?\s*(?:global\s*)?(?:ratings?|reviews?|product ratings)/i))) f.reviews = num(m[1]) * (m[2] ? (/k/i.test(m[2]) ? 1000 : 1e6) : 1);
-    else if ((m = text.match(/\(\s*([\d,]+)\s*\)(?!\s*원)/))) f.reviews = num(m[1]);
+    else if ((m = text.match(/\(\s*([\d,.]+)\s*(만|천|K|M)?\+?\s*\)(?!\s*원)/i))) f.reviews = Math.round(num(m[1]) * ({ 만: 1e4, 천: 1e3, k: 1e3, m: 1e6 }[(m[2] || '').toLowerCase()] || 1));
     if (f.reviews != null && f.reviews === f.price) f.reviews = null;
 
     // 판매수: "1,234개 구매", "구매 1만+", "500명 예약", "누적판매 3,000"
     const unit = (n, u) => (n == null ? null : n * (u === '만' ? 10000 : u === '천' ? 1000 : 1));
     if ((m = text.match(/([\d,]+(?:\.\d)?)\s*(만|천)?\s*(\+)?\s*(?:개|건|명|회|장)?\s*(?:이상\s*)?(?:구매|판매|팔림|주문|예약|예매)(?!하기|\s*가능|\s*불가)/))) {
       f.sales = unit(num(m[1]), m[2]); f.salesPlus = !!m[3];
-    } else if ((m = text.match(/(?:구매|판매|누적\s*판매|주문|예약)\s*(?:수|건수)?\s*([\d,]+(?:\.\d)?)\s*(만|천)?\s*(\+)?/))) {
+    } else if ((m = text.match(/(?:구매|판매|누적\s*판매|누적\s*관객|누적|주문|예약)\s*(?:수|건수|횟수)?\s*([\d,]+(?:\.\d)?)\s*(만|천)?\s*(\+)?/))) {
       f.sales = unit(num(m[1]), m[2]); f.salesPlus = !!m[3];
     }
     if (f.sales == null && (m = text.match(/([\d,.]+)\s*(K|M)?\s*(\+)?\s*(?:sold|bought)/i))) {
@@ -437,7 +443,7 @@
     root.querySelectorAll('a[href]').forEach((e) => { if (!e.querySelector('img')) add(e.textContent, 0.5); });
     root.querySelectorAll('img[alt]').forEach((e) => add(e.alt, 2));
     const good = cand
-      .filter(({ t }) => t.length >= 4 && t.length <= 140 && !(PRICE_RE.test(t) && t.length < 25) && !/^\d/.test(t) && !NOT_TITLE.test(t))
+      .filter(({ t, s }) => t.length >= (s >= 3 ? 2 : 4) && t.length <= 140 && !(PRICE_RE.test(t) && t.length < 25) && !/^\d/.test(t) && !NOT_TITLE.test(t))
       .filter(({ t }) => !/^[\[(【][^\])】]*[\])】]$/.test(t)) // '[국내도서]' 같은 말머리만 있는 글
       .filter(({ t }) => !/^\S{0,8}\s?(아이템|상품)\s*카드$/.test(t)) // G마켓 '스마일상품 아이템카드' (화면 낭독용 이름)
       .map(({ t, s }) => ({ t, s: s - (/^(공연기간|관람기간|기간|장소|일시|위치|주소|출발|도착)/.test(t) || /~/.test(t) ? 5 : 0)
@@ -451,7 +457,7 @@
     }
     // 화면 낭독용 '상품명' 앞에 붙은 배지·브랜드 글 떼기 ('공식상품너츠상품명 너츠 골전도…')
     if (/(상품명|제품명)\s*\S/.test(f.title)) f.title = f.title.replace(/^.*?(상품명|제품명)\s*/, '');
-    f.title = f.title.replace(/\s*(더\s*보기|새\s*창\s*(에서\s*)?(이동|열기|열림)|새창열기|\(?opens? in (a )?new (window|tab)\)?)$/i, '');
+    f.title = f.title.replace(/\s*(포스터|poster|썸네일|thumbnail|대표\s*이미지|상품\s*이미지|이미지)$/i, '').replace(/\s*(더\s*보기|새\s*창\s*(에서\s*)?(이동|열기|열림)|새창열기|\(?opens? in (a )?new (window|tab)\)?)$/i, '');
     if (opts.detail) f.title = norm(titleElement()?.textContent) || pageTitle() || f.title;
 
     // 보낸 사람 자리: 브랜드·판매자·지역·극장 같은 짧은 글, 없으면 제목 첫 단어
@@ -461,9 +467,13 @@
     const st = senderEl && unbadge(norm(senderEl.textContent));
     const okSender = (s) => s && s.length >= 2 && s.length <= 16 && s !== f.title && !/\d.*(원|%)|[%₩]|^\d/.test(s) && !NOT_TITLE.test(s) && !BADGE_WORD.test(s)
       // 화면 낭독용 칸 이름 ('상품명', '가격정보', '판매가', '할인율')
+      && !/^[,+·|]|[:：]$/.test(s) && !/^(제한된\s*시간|한정\s*시간|일반\s*가격|정가|가격)/.test(s) && !/색상|패턴|제품\s*페이지|colors?|options?|more\b/i.test(s)
+      && !/찜\s*하기|순위|^찜$|wishlist|add to (list|favorites)/i.test(s)
       && !/^(구매|판매|구매\s*수|판매\s*수|.*평점|상품명|제품명|가격\s*정보|판매\s*가|할인\s*율|할인률|원가|정보|최저가|.*최저가|.*정보)$/.test(s);
     // 카드 맨 앞 짧은 줄이 브랜드인 사이트가 많아요 (오늘의집 '먼데이하우스', 무신사 '아워호프'). 배지 글은 건너뛰어요.
-    const shortLines = (root.innerText || '').split('\n').map((t) => unbadge(norm(t))).filter((t) => t && t.length <= 14 && okSender(t) && !/^[\d.,%()\s:+]+$/.test(t) && !/^tooltip$|\d|배송|도착|출발|할인|쿠폰|적립|혜택|포인트/i.test(t));
+    const btnText = new Set([...root.querySelectorAll('button,[role="button"],[class*="badge" i],[class*="label" i],[class*="tag" i],[class*="btn" i],[class*="flag" i]')]
+      .map((e) => unbadge(norm(e.textContent))).filter((t) => t && t.length <= 20));
+    const shortLines = (root.innerText || '').split('\n').map((t) => unbadge(norm(t))).filter((t) => !btnText.has(t)).filter((t) => t && t.length <= 14 && okSender(t) && !/^[\d.,%()\s:+]+$/.test(t) && !/^tooltip$|\d|배송|도착|출발|할인|쿠폰|적립|혜택|포인트/i.test(t));
     f.sender2 = shortLines[1] || ''; // 첫 줄이 기획전 이름일 때 쓸 다음 줄 ('겨울준비' 다음 '노운베러')
     const firstLine = (root.innerText || '').split('\n').map((t) => unbadge(norm(t))).find((t) => t && !BADGE_WORD.test(t) && !NOT_TITLE.test(t) && !/^[\d.,%()\s:+]+$/.test(t));
     const fromTitle = f.title.replace(/^\s*[\[(【][^\])】]{0,20}[\])】]\s*/, '').split(/[\s,\[\]()]/).find((w) => w.length >= 2);
@@ -475,7 +485,8 @@
     const seller = text.match(/(?:판매자|셀러|판매처|스토어|상점|seller|sold by)(?:명|\s*이름)?\s*:?\s*([^\s|·,]{2,14})/i);
     if (author && !okSender(st)) { f.sender = author[1].replace(/\s*(저자|저|지음)$/, '').slice(0, 14); }
     else if (seller && !okSender(st) && okSender(seller[1]) && !/정보|등급|배송|직접|평점|찜|문의/.test(seller[1])) { f.sender = seller[1]; }
-    else f.sender = (okSender(st) ? st : okSender(firstLine) && firstLine.length <= 14 && firstLine !== f.title ? firstLine : (shortLines.find((t) => t !== f.title && !f.title.startsWith(t)) || fromTitle || '업무팀')).slice(0, 14);
+    else f.sender = (okSender(st) ? st : okSender(firstLine) && firstLine.length <= 14 && firstLine !== f.title ? firstLine : (((f.senderLine = shortLines.find((t) => t !== f.title && !f.title.startsWith(t)))) || fromTitle || '업무팀')).slice(0, 14);
+    f.senderT = fromTitle || '';
 
     // 미리보기: 숫자 아닌 짧은 글 몇 개 (배송·위치·좌석 등)
     const pv = (root.innerText || '').split('\n').map(norm)
@@ -549,7 +560,12 @@
       const sig = sigOf(e);
       let n = 0;
       // 형제 4개 이상이 저마다 사진과 가격을 가진 '상품 카드'일 때만
-      for (const k of e.parentElement.children) if (sigOf(k) === sig && k.querySelector('img') && PRICE_RE.test(k.innerText || '') && ++n >= 4) return true;
+      const bt = norm(el.textContent || el.value || '');
+      for (const k of e.parentElement.children) {
+        if (sigOf(k) !== sig || !k.querySelector('img')) continue;
+        const same = bt && [...k.querySelectorAll('button,a,[role="button"]')].some((x) => norm(x.textContent) === bt);
+        if ((PRICE_RE.test(k.innerText || '') || same) && ++n >= 4) return true;
+      }
     }
     return false;
   }
