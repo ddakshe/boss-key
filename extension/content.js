@@ -451,7 +451,7 @@
     // 제목: 제목·이름 클래스나 h태그, 없으면 가장 긴 글 덩어리
     // 점수: h태그 > 제목·이름 클래스·이미지 설명 > strong. '공연기간', '장소', 날짜 범위 같은 설명 줄은 깎아요.
     const cand = [];
-    const add = (t, s) => { t = norm(t); if (t) cand.push({ t, s }); };
+    const add = (t, s) => { t = norm(t).replace(/^[,\s·|:]+/, ''); if (t) cand.push({ t, s }); };
     root.querySelectorAll('h1,h2,h3,h4,h5').forEach((e) => add(e.textContent, 3));
     // 객실·옵션 이름('스탠다드 트윈룸')보다 숙소·상품 이름이 먼저예요
     root.querySelectorAll('[class*="title" i],[class*="name" i],[class*="tit" i]').forEach((e) => add(e.textContent, /room|option|variant|sku|plan|객실/i.test(String(e.className)) ? 0.8 : 2));
@@ -460,7 +460,8 @@
     root.querySelectorAll('strong').forEach((e) => add(e.textContent, 1));
     root.querySelectorAll('a[href] b, a[href] strong').forEach((e) => add(e.textContent, 2));
     root.querySelectorAll('a[href]').forEach((e) => { if (!e.querySelector('img')) add(e.textContent, 0.5); });
-    root.querySelectorAll('img[alt]').forEach((e) => add(e.alt, 2));
+    // 포스터 그림의 설명은 거의 늘 작품 이름이에요 (메가박스)
+    root.querySelectorAll('img[alt]').forEach((e) => add(e.alt, /poster|포스터/i.test(String(e.className) + ' ' + String(e.parentElement?.className || '')) ? 3 : 2));
     const good = cand
       .filter(({ t, s }) => t.length >= (s >= 3 ? 2 : 4) && t.length <= 140 && !(PRICE_RE.test(t) && t.length < 25) && !/^\d/.test(t) && !NOT_TITLE.test(t))
       .filter(({ t }) => !/^[\[(【][^\])】]*[\])】]$/.test(t)) // '[국내도서]' 같은 말머리만 있는 글
@@ -470,7 +471,8 @@
       .map(({ t, s }) => ({ t, s: s - (/^(공연기간|관람기간|기간|장소|일시|위치|주소|출발|도착)/.test(t) || /~/.test(t) ? 5 : 0)
         // 설명 문장('…산정됩니다.', 'Prices include taxes.')은 제목이 아니에요 (아고다 말풍선)
         - (t.length > 25 && /(니다|어요|해요|세요)\.?$|[a-z]\.$/.test(t) ? 6 : 0)
-        - (PRICE_RE.test(t) ? 2 : 0) }));
+        - (PRICE_RE.test(t) ? 2 : 0)
+        - (/(버튼|button|아이콘|icon|로고|logo)$/i.test(t) ? 6 : 0) }));
     if (good.length) f.title = good.sort((a, b) => b.s - a.s || b.t.length - a.t.length)[0].t;
     if (!f.title) {
       const lines = (root.innerText || '').split('\n').map(norm).filter((t) => t.length >= 4 && !(PRICE_RE.test(t) && t.length < 25) && !NOT_TITLE.test(t) && !BADGE_WORD.test(t)
@@ -896,12 +898,14 @@
   const isOn = (e) => !!e && (e.matches('[aria-selected="true"],[aria-current]:not([aria-current="false"]),[aria-checked="true"],[aria-pressed="true"]')
     || /(^|[\s_-])(on|active|selected|current|checked|is-active|is-selected|is-checked|sel)([\s_-]|$)/i.test(String(e.className || ''))
     || !!e.querySelector?.('input:checked'));
+  const PRODUCT_SORT = /가격|금액|판매|추천|인기|랭킹|정확도|낮은|높은\s*가|할인|price|relevan|best|popular|featured|recommend|sold/i;
+  const isProductSort = (labels) => labels.some((t) => PRODUCT_SORT.test(t) && !/별점|평점|좋아요|도움/.test(t));
   function siteSorts() {
     // 1) <select>로 된 정렬
     for (const sel of document.querySelectorAll('select')) {
       if (host?.contains(sel)) continue;
       const opts = [...sel.options];
-      if (opts.filter((o) => SORT_RE.test(norm(o.text))).length < 3) continue;
+      if (opts.filter((o) => SORT_RE.test(norm(o.text))).length < 3 || !isProductSort(opts.map((o) => norm(o.text)))) continue;
       return opts.map((o) => ({ label: norm(o.text), on: o.selected, pick: () => { sel.value = o.value; sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true })); } }));
     }
     // 2) 링크·버튼 묶음으로 된 정렬 (숨은 드롭다운 안에 있어도 괜찮아요)
@@ -918,7 +922,7 @@
     let best = null;
     for (const list of groups.values()) {
       const uniq = [...new Map(list.map((e) => [norm(e.textContent), e])).values()];
-      if (uniq.length >= 3 && (!best || uniq.length > best.length)) best = uniq;
+      if (uniq.length >= 3 && isProductSort(uniq.map((e) => norm(e.textContent))) && (!best || uniq.length > best.length)) best = uniq;
     }
     if (!best) return null;
     const out = best.map((e) => ({ label: norm(e.textContent), on: isOn(e) || isOn(e.parentElement), pick: () => e.click() }));
