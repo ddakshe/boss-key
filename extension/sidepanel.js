@@ -18,6 +18,15 @@ const siteKeyOf = (hostname) => {
   return p.slice(two ? -3 : -2).join('.');
 };
 
+// 해 본 사이트 칩: 지금 보는 사이트와 같은 도메인이면 표시해요.
+function markTried(origin) {
+  document.querySelectorAll('#cats span').forEach((el) => {
+    const same = !!origin && siteKeyOf(el.dataset.host) === origin;
+    el.classList.toggle('now', same);
+    el.title = same ? '지금 보는 사이트예요' : el.dataset.host;
+  });
+}
+
 async function activeTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
@@ -53,6 +62,7 @@ async function refresh() {
   const armed = !!(origin && all['mmOn:' + origin]);
 
   $('#host').textContent = origin || '이 페이지';
+  markTried(origin);
   $('#armed').checked = armed;
   $('#armed').disabled = !current.supported;
   $('#unsupported').hidden = current.supported || !tab;
@@ -154,4 +164,5 @@ chrome.tabs.onActivated.addListener(() => refresh());
 chrome.tabs.onUpdated.addListener((_id, info) => { if (info.status === 'complete' || info.url) refresh(); });
 // 단축키로 화면을 바꿔도 패널 표시가 따라가게 가끔 다시 확인해요.
 setInterval(refresh, 2000);
+$('#triedCount').textContent = document.querySelectorAll('#cats span').length + '곳';
 refresh();

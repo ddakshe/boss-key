@@ -88,6 +88,12 @@ kbd { font: 11px Consolas, monospace; background: var(--bg); border: 1px solid v
 .opt-title { font-weight: 700; }
 .link { border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; flex: none; }
 
+.cats { display: grid; gap: 8px; margin-top: 10px; }
+.cat { font-size: 12px; line-height: 1.8; }
+.cat b { display: block; color: var(--sub); font-weight: 600; font-size: 11px; margin-bottom: 3px; }
+.cat span { display: inline-block; border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px; margin: 0 3px 3px 0; }
+.cat span.now { border-color: var(--on); color: var(--on); font-weight: 700; }
+
 .sites { list-style: none; margin: 0; padding: 0; }
 .sites li { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .sites li:last-child { border-bottom: 0; }
