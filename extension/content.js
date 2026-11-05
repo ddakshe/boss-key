@@ -96,7 +96,9 @@
 
   function looksLikeCard(el) {
     const r = el.getBoundingClientRect();
-    if (r.width < 60 || r.height < 40) return false;
+    if (r.width < 60) return false;
+    // 게시판 목록은 그림 없이 한 줄짜리라 낮아요. 가로로 넓은 줄은 낮아도 카드로 봐요.
+    if (r.height < (r.width >= 300 ? 18 : 40)) return false;
     const hasLink = el.tagName === 'A' || el.querySelector('a[href]') || (el.querySelector('img') && el.querySelector('button,[role="button"]'));
     const t = el.innerText || '';
     return hasLink && t.length > 4 && t.length < 1500;
@@ -340,6 +342,41 @@
     const market = (text.match(/코스피|코스닥|KOSPI|KOSDAQ|NASDAQ|NYSE|AMEX/i) || [''])[0];
     return { ticker, chg, vol, amt, cap, price, market };
   }
+  // 게시판 줄: 사이트마다 칸 이름이 비슷해요 (nick·hit·view·reply·recomm·date).
+  // 글자만 있는 목록이라 값으로는 못 알아보고, 칸 이름으로 읽어요.
+  function boardInfo(root) {
+    // 칸 이름이 붙은 '가장 안쪽' 요소만 봐요 (덩어리를 집으면 날짜가 두 번 겹쳐 나와요)
+    const pick = (re, max = 40) => {
+      let loose = '';
+      for (const e of root.querySelectorAll('*')) {
+        const c = typeof e.className === 'string' ? e.className : '';
+        if (!c || !re.test(c)) continue;
+        const t = norm(e.textContent);
+        if (!t || t.length > max) continue;
+        if (!e.children.length) return t;
+        if (!loose) loose = t;
+      }
+      return loose;
+    };
+    // 숫자 칸은 숫자만 받아요 ('공지' 같은 배지가 추천 수로 들어가지 않게)
+    const NUMISH = /^[\d,.]+\s*[kKmM만천]?$/;
+    const pickNum = (re) => { const t = pick(re, 12); return NUMISH.test(t) ? t : ''; };
+    // 제목은 말머리·분류 칸이 아닌 것 중 가장 긴 것 ('[G마켓]'만 집지 않게)
+    const subject = [...root.querySelectorAll('*')]
+      .filter((e) => { const c = typeof e.className === 'string' ? e.className : ''; return c && /subject|tit\b|title/i.test(c) && !/prefac|prefix|cate|small|tag/i.test(c); })
+      .map((e) => norm(e.textContent)).filter((t) => t && t.length <= 120)
+      .sort((a, b) => b.length - a.length)[0] || '';
+    const when = pick(/time|date|regdat/i, 24);
+    const hit = pickNum(/hit|view|count|read/i);
+    const rec = pickNum(/recomm|vote|like|up_?num|symph/i);
+    const reply = pickNum(/reply|comment|cmt/i);
+    if (!when || !(hit || rec || reply)) return null;
+    return { no: pick(/numb|_num|gall_num/i, 12), cat: pick(/small|cate|prefac|tag/i, 16),
+      subject,
+      writer: pick(/nick|author|writer|name|member|gall_writer/i, 24), hit, rec, reply, when };
+  }
+  const isBoardList = (items) => items.filter((f) => f.board).length >= Math.max(3, items.length * 0.5);
+
   const isStockList = (items) => items.filter((f) => f.stock).length >= Math.max(2, items.length * 0.5);
   // 위장할 때 등락률은 부호만 남겨요 (빨강·파랑 같은 느낌을 지워요)
   const stockChg = (t) => (state.labels === 'real' || !t ? t : t.replace('+', '△').replace('-', '▽'));
@@ -679,6 +716,11 @@
     f.car = carInfo(root, text);
     f.job = f.car ? null : jobInfo(text);
     f.stock = f.car || f.job ? null : stockInfo(text);
+    f.board = f.car || f.job || f.stock || opts.detail ? null : boardInfo(root);
+    if (f.board) {
+      if (f.board.subject && f.board.subject.length >= 4) f.title = f.board.subject;
+      if (f.board.writer && f.board.writer !== f.title) f.sender = f.board.writer;
+    }
     // 값도 날짜도 없는 줄은 '묶음'일 수 있어요 (넷플릭스의 가로 줄). 안엣것을 모아 둬요.
     f.kids = !opts.detail && f.price == null && !f.stock && !f.car && !f.job ? subItems(root) : [];
     // 로고 그림 설명이 제목으로 들어오는 곳이 있어요 ('삼성전자 로고' → '삼성전자')
@@ -1168,6 +1210,7 @@
     '거래수': '리뷰 수', '출고수': '판매수', '납기': '도착일', '비고': '상품 정보', '운임': '배송비·배송 종류',
     '기준월': '연식', '누적량': '주행거리(km)', '유형': '연료', '지점': '지역', '방식': '변속기',
     '등급': '경력', '요건': '학력', '구분': '고용 형태', '보수': '연봉·급여', '기한': '마감일',
+    '번호': '글 번호', '항목': '말머리',
     '코드': '종목코드', '증감(%)': '등락률(%)', '수량': '거래량', '거래액': '거래대금', '평가액': '시가총액', '분류': '시장',
     // 결재함
     '새 결재 진행': '사이트 홈', '결재 대기 문서': '지금 보는 목록', '중요 문서': '별표한 상품', '관심 문서': '찜 목록',
@@ -1425,6 +1468,19 @@
             <td>${i + 1}</td><td>${esc(f.sender)}</td><td class="item">${thumb(f, 'th s')}${esc(f.title)}</td>
             <td>${esc(j.loc || '')}</td><td>${esc(jobCareer(j.career) || '')}</td><td>${esc(jobEdu(j.edu) || '')}</td><td>${esc(jobType(j.type) || '')}</td>
             <td>${esc(jobPay(j.pay) || '')}</td><td>${esc(j.due || (f.date ? ymd(f.date) : ''))}</td><td>${(f.labels || []).includes('ad') ? (state.labels === 'real' ? '광고' : '참조') : ''}</td></tr>`; }).join('')}
+          </tbody></table>${sheetTabs()}</div>`;
+        }
+        if (isBoardList(items)) {
+          const head = ['No', '번호', '항목', '품목', '거래처', '거래수', '가중치', '출고수', '납기', '비고'];
+          return `<div class="sheet"><div class="fx"><span>fx</span><input value="=COUNTIF(H2:H${items.length + 1},&quot;>100&quot;)" readonly></div>
+          <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:72px"><col style="width:80px"><col><col style="width:110px"><col style="width:60px"><col style="width:60px"><col style="width:66px"><col style="width:84px"><col style="width:50px"></colgroup>
+          <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
+          <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
+          ${items.map((f, i) => { const g = f.board || {}; return `<tr data-id="${f.id}" title="${tip(f)}"><th>${i + 2}</th>
+            <td>${i + 1}</td><td class="n">${esc(g.no || '')}</td><td>${esc(g.cat || '')}</td>
+            <td class="item">${thumb(f, 'th s')}${esc(f.title)}</td><td>${esc(g.writer || '')}</td>
+            <td class="n">${esc(g.reply || '')}</td><td class="n">${esc(g.rec || '')}</td><td class="n">${esc(g.hit || '')}</td>
+            <td>${esc(g.when || (f.date ? ymd(f.date) : ''))}</td><td></td></tr>`; }).join('')}
           </tbody></table>${sheetTabs()}</div>`;
         }
         if (isStockList(items)) {
