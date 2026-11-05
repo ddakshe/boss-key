@@ -16,14 +16,32 @@ const EXT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'exten
 
 // 켜 둘 사이트와 열어 볼 주소. 둘째 칸은 사이트 키(도메인)예요.
 const SITES = [
+  // 쇼핑
+  ['알리익스프레스', 'aliexpress.com', 'https://ko.aliexpress.com/w/wholesale-earphone.html'],
+  // 채용
   ['사람인 검색', 'saramin.co.kr', 'https://www.saramin.co.kr/zf_user/search?searchword=개발자'],
   ['사람인 직업별', 'saramin.co.kr', 'https://www.saramin.co.kr/zf_user/jobs/list/job-category'],
   ['잡코리아 검색', 'jobkorea.co.kr', 'https://www.jobkorea.co.kr/Search/?stext=개발자'],
   ['원티드 목록', 'wanted.co.kr', 'https://www.wanted.co.kr/wdlist/518'],
+  // 중고차
   ['SK엔카 목록', 'encar.com', 'https://www.encar.com/dc/dc_carsearchlist.do?carType=kor'],
   ['K Car 검색', 'kcar.com', 'https://www.kcar.com/bc/search'],
+  // 주식
+  ['네이버증권 시총', 'naver.com', 'https://finance.naver.com/sise/sise_market_sum.naver'],
+  ['토스증권', 'tossinvest.com', 'https://www.tossinvest.com/?market=us'],
+  ['야후 파이낸스', 'yahoo.com', 'https://finance.yahoo.com/markets/stocks/most-active/'],
+  // 게시판
+  ['클리앙 모두의공원', 'clien.net', 'https://www.clien.net/service/board/park'],
+  ['뽐뿌 게시판', 'ppomppu.co.kr', 'https://www.ppomppu.co.kr/zboard/zboard.php?id=ppomppu'],
+  // 영상
+  ['유튜브 검색', 'youtube.com', 'https://www.youtube.com/results?search_query=코딩'],
+  // 항공 (늦게 그려져요 — WAIT=16000 쯤 줘야 해요)
   ['트립닷컴 항공', 'trip.com', 'https://kr.trip.com/flights/seoul-to-tokyo/tickets-sel-tyo?ddate=2026-12-10'],
 ];
+
+// 이 도구로는 못 여는 곳 (사람이 직접 봐야 해요):
+//   쿠팡 Access Denied · 네이버쇼핑 접속 제한 · 테무 로그인 벽 · 쉬인 봇 확인
+//   디시 타임아웃 · 옥션 봇 확인 · 넷플릭스 로그인
 
 async function loadPlaywright() {
   const tries = [
