@@ -38,6 +38,7 @@
   let origTitle = document.title; // 우리가 탭 제목을 바꾸기 전 원래 제목
   const state = {
     openKids: new Set(),
+    sel: null,
     pvHide: true,
     on: false,
     template: 'sheet',  // mail | sheet | approval
@@ -1406,6 +1407,12 @@
     ? `<img class="${cls}" src="${esc(f.img)}" data-big="${esc(f.img)}" alt="">`
     : (f.img ? `<span class="clip" data-big="${esc(f.img)}">📎</span>` : '');
   const tip = (f) => esc(f.title + '\n' + disguise.real(f));
+  // 수식 입력줄: 평소엔 수식, 줄을 고르면 그 줄의 진짜 값. 눌러야만 보여요.
+  const fxBar = (formula) => {
+    const f = state.sel && state.items.find((x) => x.id === state.sel);
+    const v = f ? [f.title, disguise.real(f)].filter(Boolean).join('  ·  ') : formula;
+    return `<div class="fx"><span>fx</span><input value="${esc(v)}" readonly></div>`;
+  };
   const weakMode = () => state.strength === 'weak';
   // 목록의 '지표' 칸: 리뷰 수·판매수 (숫자 그대로 모드에서는 평점까지 그대로)
   const metric = (f) => {
@@ -1461,7 +1468,7 @@
         const weak = weakMode();
         return `<div class="mail">${items.map((f) => {
           const subj = `${f.discount ? `<span class="pre">[${f.discount}]</span> ` : ''}<span class="sub">${esc(f.title)}</span>${f.preview ? `<span class="pv"> — ${esc(f.preview)}</span>` : ''}`;
-          return `<div class="row ${state.seen[f.id] ? 'read' : ''} ${f.soldOut ? 'dim' : ''}" data-id="${f.id}" title="${tip(f)}">
+          return `<div class="row ${state.seen[f.id] ? 'read' : ''} ${f.soldOut ? 'dim' : ''}" data-id="${f.id}">
             <input type="checkbox" class="ck">${starBtn(f)}
             <span class="snd">${esc(f.sender)}</span>
             <span class="subj">${labelHtml(f)}${subj}</span>
@@ -1515,24 +1522,24 @@
         const weak = weakMode();
         if (isJobList(items)) {
           const head = ['No', '거래처', '품목', '지점', '등급', '요건', '구분', '보수', '기한', '비고'];
-          return `<div class="sheet"><div class="fx"><span>fx</span><input value="=COUNTIF(E2:E${items.length + 1},&quot;N*&quot;)" readonly></div>
+          return `<div class="sheet">${fxBar(`=COUNTIF(E2:E${items.length + 1},&quot;N*&quot;)`)}
           <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:130px"><col><col style="width:96px"><col style="width:70px"><col style="width:56px"><col style="width:56px"><col style="width:90px"><col style="width:84px"><col style="width:60px"></colgroup>
           <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
           <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
-          ${items.map((f, i) => { const j = f.job || {}; return `<tr class="${f.soldOut ? 'dim' : ''}" data-id="${f.id}" title="${tip(f)}"><th>${i + 2}</th>
-            <td>${i + 1}</td><td>${esc(f.sender)}</td><td class="item">${thumb(f, 'th s')}${esc(f.title)}</td>
+          ${items.map((f, i) => { const j = f.job || {}; return `<tr class="${f.soldOut ? 'dim' : ''}" data-id="${f.id}"><th>${i + 2}</th>
+            <td data-sel="${f.id}" title="눌러서 진짜 값 보기">${i + 1}</td><td>${esc(f.sender)}</td><td class="item">${thumb(f, 'th s')}${esc(f.title)}</td>
             <td>${esc(j.loc || '')}</td><td>${esc(jobCareer(j.career) || '')}</td><td>${esc(jobEdu(j.edu) || '')}</td><td>${esc(jobType(j.type) || '')}</td>
             <td>${esc(jobPay(j.pay) || '')}</td><td>${esc(j.due || (f.date ? ymd(f.date) : ''))}</td><td>${(f.labels || []).includes('ad') ? (state.labels === 'real' ? '광고' : '참조') : ''}</td></tr>`; }).join('')}
           </tbody></table>${sheetTabs()}</div>`;
         }
         if (isBoardList(items)) {
           const head = ['No', '번호', '항목', '품목', '거래처', '거래수', '가중치', '출고수', '납기', '비고'];
-          return `<div class="sheet"><div class="fx"><span>fx</span><input value="=COUNTIF(H2:H${items.length + 1},&quot;>100&quot;)" readonly></div>
+          return `<div class="sheet">${fxBar(`=COUNTIF(H2:H${items.length + 1},&quot;>100&quot;)`)}
           <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:72px"><col style="width:80px"><col><col style="width:110px"><col style="width:60px"><col style="width:60px"><col style="width:66px"><col style="width:84px"><col style="width:50px"></colgroup>
           <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
           <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
-          ${items.map((f, i) => { const g = f.board || {}; return `<tr data-id="${f.id}" title="${tip(f)}"><th>${i + 2}</th>
-            <td>${i + 1}</td><td class="n">${esc(g.no || '')}</td><td>${esc(g.cat || '')}</td>
+          ${items.map((f, i) => { const g = f.board || {}; return `<tr data-id="${f.id}"><th>${i + 2}</th>
+            <td data-sel="${f.id}" title="눌러서 진짜 값 보기">${i + 1}</td><td class="n">${esc(g.no || '')}</td><td>${esc(g.cat || '')}</td>
             <td class="item">${thumb(f, 'th s')}${esc(f.title)}</td><td>${esc(g.writer || '')}</td>
             <td class="n">${esc(g.reply || '')}</td><td class="n">${esc(g.rec || '')}</td><td class="n">${esc(g.hit || '')}</td>
             <td>${esc(g.when || (f.date ? ymd(f.date) : ''))}</td><td></td></tr>`; }).join('')}
@@ -1540,12 +1547,12 @@
         }
         if (isStockList(items)) {
           const head = ['No', '코드', '품목', '단가', '증감(%)', '수량', '거래액', '평가액', '분류', '비고'];
-          return `<div class="sheet"><div class="fx"><span>fx</span><input value="=SUMPRODUCT(D2:D${items.length + 1},E2:E${items.length + 1})" readonly></div>
+          return `<div class="sheet">${fxBar(`=SUMPRODUCT(D2:D${items.length + 1},E2:E${items.length + 1})`)}
           <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:64px"><col><col style="width:96px"><col style="width:72px"><col style="width:90px"><col style="width:84px"><col style="width:88px"><col style="width:70px"><col style="width:60px"></colgroup>
           <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
           <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
-          ${items.map((f, i) => { const k = f.stock || {}; return `<tr data-id="${f.id}" title="${tip(f)}"><th>${i + 2}</th>
-            <td>${i + 1}</td><td>${esc(k.ticker || '')}</td><td class="item">${thumb(f, 'th s')}${esc(f.title)}</td>
+          ${items.map((f, i) => { const k = f.stock || {}; return `<tr data-id="${f.id}"><th>${i + 2}</th>
+            <td data-sel="${f.id}" title="눌러서 진짜 값 보기">${i + 1}</td><td>${esc(k.ticker || '')}</td><td class="item">${thumb(f, 'th s')}${esc(f.title)}</td>
             <td class="n">${f.price != null ? (weak ? won(f.price) : f.price.toLocaleString()) : ''}</td>
             <td class="n">${esc(stockChg(k.chg) || '')}</td><td class="n">${esc(k.vol || '')}</td>
             <td class="n">${esc(k.amt || '')}</td><td class="n">${esc(k.cap || '')}</td>
@@ -1554,24 +1561,24 @@
         }
         if (isCarList(items)) {
           const head = ['No', '거래처', '품목', '단가', '기준월', '누적량', '유형', '지점', '방식', '비고'];
-          return `<div class="sheet"><div class="fx"><span>fx</span><input value="=AVERAGEIF(G2:G${items.length + 1},&quot;G&quot;,D2:D${items.length + 1})" readonly></div>
+          return `<div class="sheet">${fxBar(`=AVERAGEIF(G2:G${items.length + 1},&quot;G&quot;,D2:D${items.length + 1})`)}
           <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:96px"><col><col style="width:96px"><col style="width:70px"><col style="width:84px"><col style="width:56px"><col style="width:60px"><col style="width:48px"><col style="width:90px"></colgroup>
           <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
           <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
-          ${items.map((f, i) => { const c = f.car || { note: [] }; return `<tr class="${f.soldOut ? 'dim' : ''}" data-id="${f.id}" title="${tip(f)}"><th>${i + 2}</th>
-            <td>${i + 1}</td><td>${esc(f.sender)}</td><td class="item">${thumb(f, 'th s')}${esc(f.title)}</td>
+          ${items.map((f, i) => { const c = f.car || { note: [] }; return `<tr class="${f.soldOut ? 'dim' : ''}" data-id="${f.id}"><th>${i + 2}</th>
+            <td data-sel="${f.id}" title="눌러서 진짜 값 보기">${i + 1}</td><td>${esc(f.sender)}</td><td class="item">${thumb(f, 'th s')}${esc(f.title)}</td>
             <td class="n">${f.price != null ? (weak ? won(f.price) : f.price.toLocaleString()) : ''}</td>
             <td>${esc(c.year || '')}</td><td class="n">${c.km != null ? c.km.toLocaleString() : ''}</td>
             <td>${esc(carFuel(c.fuel) || '')}</td><td>${esc(c.region || '')}</td><td>${esc(carTrans(c.trans) || '')}</td><td>${esc(carNote(c.note || []))}</td></tr>`; }).join('')}
           </tbody></table>${sheetTabs()}</div>`;
         }
         const head = ['No', '거래처', '품목', '단가', '운임', '할인(%)', '가중치', '거래수', '출고수', '납기'];
-        return `<div class="sheet"><div class="fx"><span>fx</span><input value="=SUMPRODUCT(D2:D${items.length + 1},(1-E2:E${items.length + 1}/100))" readonly></div>
+        return `<div class="sheet">${fxBar(`=SUMPRODUCT(D2:D${items.length + 1},(1-E2:E${items.length + 1}/100))`)}
           <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:120px"><col><col style="width:90px"><col style="width:96px"><col style="width:66px"><col style="width:62px"><col style="width:74px"><col style="width:74px"><col style="width:96px"></colgroup>
           <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
           <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
-          ${items.map((f, i) => `<tr class="${f.soldOut ? 'dim' : ''}" data-id="${f.id}" title="${tip(f)}"><th>${i + 2}</th>
-            <td>${i + 1}</td><td>${esc(f.sender)}</td><td class="item">${thumb(f, 'th s')}${esc(f.title)}</td>
+          ${items.map((f, i) => `<tr class="${f.soldOut ? 'dim' : ''}" data-id="${f.id}"><th>${i + 2}</th>
+            <td data-sel="${f.id}" title="눌러서 진짜 값 보기">${i + 1}</td><td>${esc(f.sender)}</td><td class="item">${thumb(f, 'th s')}${esc(f.title)}</td>
             <td class="n">${f.price != null ? (weak ? won(f.price) : f.price.toLocaleString()) : ''}</td>
             <td>${shipCell(f)}</td>
             <td class="n">${f.discount ?? ''}</td><td class="n">${f.rating ?? ''}</td>
@@ -1591,7 +1598,7 @@
           ...factsFor(f).map((p, i) => [`비고${i + 1}`, p]),
           ...(state.reviews === 'hide' ? [] : (f.reviews_list || [])).map((r, i) => [`의견${i + 1}`, `${r.author} | ${r.rating ?? ''} | ${r.body.join(' ')}`])];
         const g = gallery(f);
-        return `<div class="sheet"><div class="fx"><span>fx</span><input value="=VLOOKUP(B1,발주내역!A:I,3,FALSE)" readonly></div>
+        return `<div class="sheet">${fxBar(`=VLOOKUP(B1,발주내역!A:I,3,FALSE)`)}
           <table><colgroup><col style="width:40px"><col style="width:120px"><col></colgroup><thead><tr><th></th><th>A</th><th>B</th></tr></thead><tbody>
           ${rows.map((r, i) => `<tr><th>${i + 1}</th><td class="k">${esc(r[0])}</td><td>${i === 0 ? g.map((src) => thumb({ img: src }, 'th s')).join('') : ''}${esc(r[1] ?? '')}</td></tr>`).join('')}
           </tbody></table>
@@ -1619,7 +1626,7 @@
         const weak = weakMode();
         const st = (f) => f.soldOut ? '<span class="stt done">반려</span>' : (state.seen[f.id] ? '<span class="stt ing">진행</span>' : '<span class="stt new">대기</span>');
         return `<div class="appr"><table><thead><tr><th></th><th>문서번호</th><th>제목</th><th>기안부서</th><th>금액</th><th>운임</th><th>의견</th><th>조회</th><th>기안일</th><th>상태</th></tr></thead><tbody>
-          ${items.map((f) => `<tr class="${state.seen[f.id] ? 'read' : ''}" data-id="${f.id}" title="${tip(f)}">
+          ${items.map((f) => `<tr class="${state.seen[f.id] ? 'read' : ''}" data-id="${f.id}">
             <td>${starBtn(f)}</td>
             <td class="mono">구매-${String(f.id).slice(0, 4)}-${String(f.id).slice(-4)}</td>
             <td class="tt">${thumb(f, 'th s')}[구매요청] ${esc(f.title)}${f.discount ? ` <em>(조정 ${f.discount}%)</em>` : ''}</td>
@@ -1703,6 +1710,8 @@
   .mbody .rel{display:none}
   [data-rv]{cursor:pointer;text-decoration:underline dotted #9aa0a6;text-underline-offset:3px}[data-rv]:hover{color:#1a73e8}
   .rvopen [data-rv]{color:#1a73e8;font-weight:700}
+  [data-sel]{cursor:cell}
+  tr.selrow>td,tr.selrow>th{background:#e8f0fe}
   .haskids .item::before{content:'▸ ';color:#5f6368}
   .kidopen .item::before{content:'▾ ';color:#1a73e8}
   .kids{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 16px;padding:8px 16px 10px 46px;background:#f8f9fa}
@@ -1801,7 +1810,7 @@
     root.addEventListener('click', onClick);
     root.addEventListener('mouseover', onHover);
     root.addEventListener('mousemove', onMove);
-    root.addEventListener('mouseout', (e) => { if (e.target.dataset?.big || e.target.closest?.('[data-peek]')) hidePop(); });
+    root.addEventListener('mouseout', (e) => { if (e.target.closest?.('[data-peek]')) hidePop(); });
     root.addEventListener('change', onChange);
     root.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.classList.contains('q')) doSearch(e.target.value); });
     root.addEventListener('scroll', onScroll, true);
@@ -1891,6 +1900,7 @@
     root.querySelectorAll('.main [data-id]').forEach((r) => {
       const it = state.items.find((x) => x.id === r.dataset.id);
       if (it?.kids?.length) r.classList.add('haskids');
+      if (state.sel && r.dataset.id === state.sel) r.classList.add('selrow');
     });
     labelize();
     const m = root.querySelector('.main'); if (m) m.scrollTop = mainScroll;
@@ -1949,6 +1959,11 @@
       }
       await store.set('mmStarred', state.starred); render(); return;
     }
+    const sel = e.target.closest('[data-sel]');
+    if (sel) { e.stopPropagation(); state.sel = state.sel === sel.dataset.sel ? null : sel.dataset.sel; render(); return; }
+    // 사진은 마우스만 올려도 뜨면 안 돼요. 눌렀을 때만 보여줘요.
+    const big = e.target.closest('[data-big]');
+    if (big) { e.stopPropagation(); showBig(big, e); return; }
     const go = e.target.closest('[data-go]');
     if (go) { location.href = go.dataset.go; return; }
     const f = e.target.closest('[data-folder]');
@@ -2047,12 +2062,14 @@
 
   function onHover(e) {
     if (e.target.closest('[data-peek]')) return startPeek(e);
-    const el = e.target.closest('[data-big]');
-    if (!el) return;
+  }
+  function showBig(el, e) {
     const p = pop(); if (!p) return;
-    p.querySelector('img').src = el.dataset.big;
-    const row = el.closest('[data-id]');
-    p.querySelector('.cap').textContent = row?.getAttribute('title') || '';
+    const img = p.querySelector('img');
+    img.style.display = ''; img.src = el.dataset.big;
+    const c = p.querySelector('canvas'); if (c) c.style.display = 'none';
+    const f = state.items.find((x) => x.id === el.closest('[data-id]')?.dataset.id);
+    p.querySelector('.cap').textContent = f ? f.title : '';
     p.style.display = 'block';
     onMove(e);
   }
@@ -2173,7 +2190,7 @@
           <button class="off" data-act="uncover" title="원래 화면으로 (스페이스)">⏻</button>
         </div>
         <div class="main"><div class="bar"><span>☐</span><span class="sp"></span></div>
-          <div class="sheet"><div class="fx"><span>fx</span><input value="=SUM(D2:D${COVER_ROWS.length + 1})" readonly></div>
+          <div class="sheet">${fxBar(`=SUM(D2:D${COVER_ROWS.length + 1})`)}
           <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:90px"><col><col style="width:110px"><col style="width:90px"><col style="width:70px"></colgroup>
           <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
           <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
