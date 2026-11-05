@@ -343,22 +343,52 @@
     const market = (text.match(/코스피|코스닥|KOSPI|KOSDAQ|NASDAQ|NYSE|AMEX/i) || [''])[0];
     return { ticker, chg, vol, amt, cap, price, market };
   }
+  // 칸 이름(class)이 붙은 '가장 안쪽' 요소의 글자
+  function clsText(root, re, max = 40) {
+    let loose = '';
+    for (const e of root.querySelectorAll('*')) {
+      // 칸 이름이 class 에 없고 태그 이름에 있는 곳도 있어요 (<ytd-channel-name>)
+      const c = (typeof e.className === 'string' ? e.className : '') + ' ' + (e.id || '') + ' ' + e.tagName;
+      if (!re.test(c)) continue;
+      const t = norm(e.textContent);
+      if (!t || t.length > max) continue;
+      if (!e.children.length) return t;
+      if (!loose) loose = t;
+    }
+    return loose;
+  }
+
+  // 영상 목록(유튜브 등): 조회수·채널·올린 때
+  function videoInfo(root, text) {
+    const NUMU = /^([\d.,]+)\s*([만천억KMB])?$/i;
+    const toNum = (n, u) => Math.round(parseFloat(String(n).replace(/,/g, '')) *
+      ({ '만': 1e4, '천': 1e3, '억': 1e8, K: 1e3, M: 1e6, B: 1e9 }[(u || '').toUpperCase()] || 1));
+    let views = null;
+    const vm = text.match(/조회수\s*([\d.,]+)\s*([만천억])?\s*회|([\d.,]+)\s*([KMB])?\s*views/i);
+    if (vm) views = toNum(vm[1] || vm[3] || '0', vm[2] || vm[4]);
+    else {
+      // 유튜브는 '조회수'라는 글자 없이 숫자만 칸에 넣기도 해요 ('762만 · 4년 전')
+      for (const e of root.querySelectorAll('[class*="inline-metadata" i],[class*="view-count" i]')) {
+        const m = norm(e.textContent).match(NUMU);
+        if (m) { views = toNum(m[1], m[2]); break; }
+      }
+    }
+    if (views == null) return null;
+    const ago = text.match(/(\d+)\s*(초|분|시간|일|주|개월|달|년)\s*전/);
+    const DAY = { '초': 0, '분': 0, '시간': 0, '일': 1, '주': 7, '개월': 30, '달': 30, '년': 365 };
+    let when = null;
+    if (ago) { const d = new Date(); d.setDate(d.getDate() - (+ago[1] * (DAY[ago[2]] ?? 0))); when = d; }
+    // 채널 이름이 두 번 겹쳐 나오는 곳이 있어요 ('Lofi 코딩 Lofi 코딩 •')
+    let ch = clsText(root, /channel|owner|byline|author/i, 40).replace(/\s*[•·|]+\s*$/, '').trim();
+    const half = ch.slice(0, Math.floor(ch.length / 2)).trim();
+    if (half.length >= 2 && ch.startsWith(half) && ch.endsWith(half)) ch = half;
+    return { views, when, channel: ch, dur: (text.match(/\b\d{1,2}:\d{2}(?::\d{2})?\b/) || [''])[0] };
+  }
+
   // 게시판 줄: 사이트마다 칸 이름이 비슷해요 (nick·hit·view·reply·recomm·date).
   // 글자만 있는 목록이라 값으로는 못 알아보고, 칸 이름으로 읽어요.
   function boardInfo(root) {
-    // 칸 이름이 붙은 '가장 안쪽' 요소만 봐요 (덩어리를 집으면 날짜가 두 번 겹쳐 나와요)
-    const pick = (re, max = 40) => {
-      let loose = '';
-      for (const e of root.querySelectorAll('*')) {
-        const c = typeof e.className === 'string' ? e.className : '';
-        if (!c || !re.test(c)) continue;
-        const t = norm(e.textContent);
-        if (!t || t.length > max) continue;
-        if (!e.children.length) return t;
-        if (!loose) loose = t;
-      }
-      return loose;
-    };
+    const pick = (re, max = 40) => clsText(root, re, max);
     // 숫자 칸은 숫자만 받아요 ('공지' 같은 배지가 추천 수로 들어가지 않게)
     const NUMISH = /^[\d,.]+\s*[kKmM만천]?$/;
     const pickNum = (re) => { const t = pick(re, 12); return NUMISH.test(t) ? t : ''; };
@@ -718,6 +748,14 @@
     f.job = f.car ? null : jobInfo(text);
     f.stock = f.car || f.job ? null : stockInfo(text);
     f.board = f.car || f.job || f.stock || opts.detail ? null : boardInfo(root);
+    // 영상 줄: 조회수를 출고수로, 채널을 거래처로, 올린 때를 납기로
+    f.video = f.car || f.job || f.stock || f.board || opts.detail ? null : videoInfo(root, text);
+    if (f.video) {
+      f.sales = f.video.views; f.salesPlus = false;
+      if (f.video.channel) f.sender = f.video.channel;
+      if (f.video.when && !f.date) f.date = f.video.when;
+      f.price = null; f.discount = null; f.orig = null;
+    }
     if (f.board) {
       if (f.board.subject && f.board.subject.length >= 4) f.title = f.board.subject;
       if (f.board.writer && f.board.writer !== f.title) f.sender = f.board.writer;
