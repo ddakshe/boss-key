@@ -1462,6 +1462,9 @@
   .more{padding:18px;text-align:center;color:#5f6368}
   .more button{border:1px solid #dadce0;background:#fff;border-radius:16px;padding:6px 16px;font:inherit;cursor:pointer;margin:0 4px}
   .empty{padding:60px;text-align:center;color:#5f6368}
+  .loading{padding:60px;text-align:center;color:#5f6368;display:flex;gap:10px;align-items:center;justify-content:center}
+  .loading i{width:14px;height:14px;border:2px solid #dadce0;border-top-color:#5f6368;border-radius:50%;display:inline-block;animation:mmspin .8s linear infinite}
+  @keyframes mmspin{to{transform:rotate(360deg)}}
   .read-view{padding:20px 28px}.read-view h2{font-size:22px;font-weight:400;margin:4px 0 14px}
   .meta{color:#5f6368;margin-bottom:18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
   .att2{border:1px solid #dadce0;border-radius:6px;padding:3px 8px}
@@ -1587,7 +1590,9 @@
     const nextLink = findNext();
 
     let content;
-    if (state.folder !== 'starred' && !state.items.length && state.detail) content = t.detail(state.detail);
+    // 원래 페이지가 아직 목록을 그리는 중이면, 빈 표 대신 '불러오는 중'을 보여줘요.
+    if (!showing.length && state.folder !== 'starred' && stillLoading()) { content = `<div class="loading"><i></i>불러오는 중…</div>`; waitForList(); }
+    else if (state.folder !== 'starred' && !state.items.length && state.detail) content = t.detail(state.detail);
     else if (!showing.length) content = `<div class="empty">${state.folder === 'starred' ? '별표한 항목이 없어요.' : '이 페이지에서 목록을 찾지 못했어요. 스크롤하거나 새로고침하면 다시 찾아요.'}</div>`;
     else content = t.list(showing) + (state.folder === 'inbox' ? `<div class="more">${showing.length}개 · <button data-act="loadmore">더 불러오기</button>${nextLink ? '<button data-act="next">다음 페이지 ›</button>' : ''}</div>` : '');
 
@@ -1763,6 +1768,17 @@
   }
 
   // ---------- 7. 스캔 & 켜기/끄기 ----------
+  // 늦게 그려지는 목록(원티드·엔카·K Car 같은 곳)은 위장 화면을 켠 뒤에도 한동안 비어 있어요.
+  // 그 동안은 '목록을 못 찾았다'가 아니라 '불러오는 중'이에요.
+  const LOADING_MS = 8000;
+  let shownAt = 0;       // 위장 화면을 보여주기 시작한 시각
+  let waitTimer = 0;
+  const stillLoading = () => document.readyState !== 'complete' || (Date.now() - shownAt < LOADING_MS && !isDetailPage());
+  function waitForList() {
+    clearTimeout(waitTimer);
+    waitTimer = setTimeout(() => { if (state.on) scan(); }, 500);
+  }
+
   function scan() {
     if (!state.on) return;
     if (isDetailPage()) {
@@ -1816,6 +1832,7 @@
   function showDisguise() {
     if (state.on) return;
     state.on = true;
+    shownAt = Date.now();
     document.documentElement.style.setProperty('overflow', 'hidden', 'important');
     scan();
     mo = new MutationObserver((muts) => {
@@ -1852,6 +1869,7 @@
   const backToDisguise = () => {
     if (!armed) return;
     state.pv = null; state.openRv.clear();
+    shownAt = Date.now(); // 페이지를 옮기면 다시 불러오는 중이에요
     if (!state.on) showDisguise(); else { ensureHost(); scan(); }
   };
   window.addEventListener('pageshow', (e) => { if (e.persisted) { lastHref = location.href; backToDisguise(); } });
