@@ -1694,7 +1694,10 @@
     let content;
     // 원래 페이지가 아직 목록을 그리는 중이면, 빈 표 대신 '불러오는 중'을 보여줘요.
     if (!showing.length && state.folder !== 'starred' && stillLoading()) { content = `<div class="loading"><i></i>불러오는 중…</div>`; waitForList(); }
-    else if (state.folder !== 'starred' && !state.items.length && state.detail) content = t.detail(state.detail);
+    // 상세 화면이 아닌데 목록도 못 찾았으면, 억지로 상세처럼 그리지 않아요.
+    // (테무·쉬인처럼 카드를 못 읽는 곳에서 '품목: 로그인/회원가입'이 나오던 문제)
+    else if (state.folder !== 'starred' && !state.items.length && state.detail
+      && (isDetailPage() || state.detail.price != null)) content = t.detail(state.detail);
     else if (!showing.length) content = `<div class="empty">${state.folder === 'starred' ? '별표한 항목이 없어요.' : '이 페이지에서 목록을 찾지 못했어요. 스크롤하거나 새로고침하면 다시 찾아요.'}</div>`;
     else content = t.list(showing) + (state.folder === 'inbox' ? `<div class="more">${showing.length}개 · <button data-act="loadmore">더 불러오기</button>${nextLink ? '<button data-act="next">다음 페이지 ›</button>' : ''}</div>` : '');
 
