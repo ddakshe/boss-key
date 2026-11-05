@@ -305,6 +305,29 @@
   const carNote = (n) => (state.labels === 'real' ? n : n.map((x) => (/무사고/.test(x) ? '정상' : /진단|인증/.test(x) ? '검수' : /보증|환불/.test(x) ? '보증' : '')).filter(Boolean)).join(', ');
   const isCarList = (items) => items.filter((f) => f.car).length >= Math.max(2, items.length * 0.5);
 
+  // 주식 목록: 등락률(+·-%)과 함께 거래량·거래대금·시가총액·티커 중 하나가 보이면 종목 줄이에요.
+  // ('30% 할인' 같은 쇼핑 카드가 걸리지 않게 둘을 같이 봐요)
+  function stockInfo(text) {
+    const m = text.match(/([-+▲▼△▽]\s?\d{1,3}(?:[.,]\d+)?)\s*%/);
+    if (!m) return null;
+    const chg = norm(m[1]).replace(/[▲△]/, '+').replace(/[▼▽]/, '-').replace(/\s+/g, '');
+    // 조·억·백만원, T·B 처럼 큰 단위: 마지막 것이 시가총액, 앞의 것이 거래대금이에요
+    const bigs = [...text.matchAll(/[\d,.]+\s*조\s*[\d,]*\s*억?\s*원?|[\d,.]+\s*(?:억|백만)\s*원?|[\d,.]+\s*[TB](?![A-Za-z])/g)].map((x) => norm(x[0]));
+    const cap = bigs[bigs.length - 1] || '';
+    const amt = bigs.length > 1 ? bigs[0] : '';
+    const vol = norm((text.match(/[\d,]+\s*주(?![가-힣])|[\d,.]+\s*[MK](?![A-Za-z])/) || [''])[0]);
+    const ticker = (text.match(/^([A-Z]{1,5})(?:\s|$)/) || [, ''])[1];
+    if (!cap && !vol && !ticker) return null;
+    // 현재가: 등락률 앞에 나온 숫자들 중 가장 큰 것 (전일비·순위에 속지 않게)
+    const nums = [...text.slice(0, m.index).matchAll(/\d[\d,]*(?:\.\d+)?/g)].slice(-3).map((x) => num(x[0]));
+    const price = nums.length ? Math.max(...nums) : null;
+    const market = (text.match(/코스피|코스닥|KOSPI|KOSDAQ|NASDAQ|NYSE|AMEX/i) || [''])[0];
+    return { ticker, chg, vol, amt, cap, price, market };
+  }
+  const isStockList = (items) => items.filter((f) => f.stock).length >= Math.max(2, items.length * 0.5);
+  // 위장할 때 등락률은 부호만 남겨요 (빨강·파랑 같은 느낌을 지워요)
+  const stockChg = (t) => (state.labels === 'real' || !t ? t : t.replace('+', '△').replace('-', '▽'));
+
   // 배송 종류 이름 (원래 이름, 위장 이름)
   const SHIP_TYPES = [
     [/로켓\s*프레시|rocket[_-]?fresh|logo[_-]?fresh/i, '로켓프레시'],
@@ -639,6 +662,25 @@
 
     f.car = carInfo(root, text);
     f.job = f.car ? null : jobInfo(text);
+    f.stock = f.car || f.job ? null : stockInfo(text);
+    // 로고 그림 설명이 제목으로 들어오는 곳이 있어요 ('삼성전자 로고' → '삼성전자')
+    if (f.title) f.title = f.title.replace(/\s*(로고|logo|BI|심볼|아이콘|icon)\s*$/i, '').trim() || f.title;
+    if (f.stock && f.title) {
+      // 줄 앞에 붙는 버튼 글과 순위를 떼어내요 ('관심종목에 추가1삼성전자' → '삼성전자')
+      f.title = f.title.replace(/^(관심\s*종목에?\s*추가|관심\s*추가|즐겨찾기\s*추가|add to watchlist)\s*/i, '')
+        .replace(/^\d{1,3}(?=[가-힣A-Za-z])/, '').trim() || f.title;
+      // 티커만 제목으로 잡혔으면 회사 이름을 찾아요 (야후 파이낸스)
+      if (f.stock.ticker && f.title === f.stock.ticker) {
+        const nm = [...root.querySelectorAll('a,span,div')].map((e) => norm(e.textContent))
+          .find((t) => t.length >= 6 && t !== f.title && !/\d/.test(t) && !BUY_RE.test(t));
+        if (nm) f.title = nm;
+      }
+    }
+    if (f.stock) {
+      // 등락률을 할인율로, 순위를 평점으로 읽지 않게 해요
+      f.discount = null; f.orig = null; f.rating = null;
+      if (f.stock.price != null) { f.price = f.stock.price; f.cur = f.cur || '원'; }
+    }
     if (f.job) {
       // 공고에는 가격이 없어요 ('평균연봉 6,000' 같은 숫자를 가격으로 읽지 않게)
       f.price = null; f.orig = null; f.discount = null;
@@ -1086,6 +1128,7 @@
     '거래수': '리뷰 수', '출고수': '판매수', '납기': '도착일', '비고': '상품 정보', '운임': '배송비·배송 종류',
     '기준월': '연식', '누적량': '주행거리(km)', '유형': '연료', '지점': '지역', '방식': '변속기',
     '등급': '경력', '요건': '학력', '구분': '고용 형태', '보수': '연봉·급여', '기한': '마감일',
+    '코드': '종목코드', '증감(%)': '등락률(%)', '수량': '거래량', '거래액': '거래대금', '평가액': '시가총액', '분류': '시장',
     // 결재함
     '새 결재 진행': '사이트 홈', '결재 대기 문서': '지금 보는 목록', '중요 문서': '별표한 상품', '관심 문서': '찜 목록',
     '임시 저장 문서': '장바구니', '기안 문서함': '주문·배송 목록', '반려 문서함': '취소·반품', '전체 문서': '사이트 홈',
@@ -1344,6 +1387,20 @@
             <td>${esc(jobPay(j.pay) || '')}</td><td>${esc(j.due || (f.date ? ymd(f.date) : ''))}</td><td>${(f.labels || []).includes('ad') ? (state.labels === 'real' ? '광고' : '참조') : ''}</td></tr>`; }).join('')}
           </tbody></table>${sheetTabs()}</div>`;
         }
+        if (isStockList(items)) {
+          const head = ['No', '코드', '품목', '단가', '증감(%)', '수량', '거래액', '평가액', '분류', '비고'];
+          return `<div class="sheet"><div class="fx"><span>fx</span><input value="=SUMPRODUCT(D2:D${items.length + 1},E2:E${items.length + 1})" readonly></div>
+          <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:64px"><col><col style="width:96px"><col style="width:72px"><col style="width:90px"><col style="width:84px"><col style="width:88px"><col style="width:70px"><col style="width:60px"></colgroup>
+          <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
+          <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
+          ${items.map((f, i) => { const k = f.stock || {}; return `<tr data-id="${f.id}" title="${tip(f)}"><th>${i + 2}</th>
+            <td>${i + 1}</td><td>${esc(k.ticker || '')}</td><td class="item">${thumb(f, 'th s')}${esc(f.title)}</td>
+            <td class="n">${f.price != null ? (weak ? won(f.price) : f.price.toLocaleString()) : ''}</td>
+            <td class="n">${esc(stockChg(k.chg) || '')}</td><td class="n">${esc(k.vol || '')}</td>
+            <td class="n">${esc(k.amt || '')}</td><td class="n">${esc(k.cap || '')}</td>
+            <td>${esc(k.market || '')}</td><td></td></tr>`; }).join('')}
+          </tbody></table>${sheetTabs()}</div>`;
+        }
         if (isCarList(items)) {
           const head = ['No', '거래처', '품목', '단가', '기준월', '누적량', '유형', '지점', '방식', '비고'];
           return `<div class="sheet"><div class="fx"><span>fx</span><input value="=AVERAGEIF(G2:G${items.length + 1},&quot;G&quot;,D2:D${items.length + 1})" readonly></div>
@@ -1374,7 +1431,10 @@
       },
       detail(f) {
         const c = f.car, j = f.job;
-        const rows = j ? [['품목', f.title], ['거래처', f.sender], ['지점', j.loc], ['등급', jobCareer(j.career)], ['요건', jobEdu(j.edu)], ['구분', jobType(j.type)], ['보수', jobPay(j.pay)], ['기한', j.due || ymd(f.date)],
+        const k = f.stock;
+        const rows = k ? [['품목', f.title], ['코드', k.ticker], ['단가', f.price?.toLocaleString()], ['증감(%)', stockChg(k.chg)],
+          ['수량', k.vol], ['거래액', k.amt], ['평가액', k.cap], ['분류', k.market],
+          ...factsFor(f).map((p, i) => [`비고${i + 1}`, p])] : j ? [['품목', f.title], ['거래처', f.sender], ['지점', j.loc], ['등급', jobCareer(j.career)], ['요건', jobEdu(j.edu)], ['구분', jobType(j.type)], ['보수', jobPay(j.pay)], ['기한', j.due || ymd(f.date)],
           ...factsFor(f).map((p, i) => [`비고${i + 1}`, p])] : c ? [['품목', f.title], ['거래처', f.sender], ['단가', f.price?.toLocaleString()], ['기준월', c.year], ['누적량', c.km?.toLocaleString()], ['유형', carFuel(c.fuel)], ['지점', c.region], ['방식', carTrans(c.trans)], ['비고', carNote(c.note || [])],
           ...factsFor(f).map((p, i) => [`비고${i + 1}`, p])] : [['품목', f.title], ['거래처', f.sender], ['단가', f.price?.toLocaleString()], ['운임', shipCell(f)], ['할인(%)', f.discount], ['가중치', f.rating], ['거래수', f.reviews?.toLocaleString()], ['출고수', f.sales != null ? count(f.sales, f.salesPlus) : ''], ['납기', ymd(f.date)],
           ...factsFor(f).map((p, i) => [`비고${i + 1}`, p]),
