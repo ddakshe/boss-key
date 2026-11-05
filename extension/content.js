@@ -38,6 +38,7 @@
   let origTitle = document.title; // 우리가 탭 제목을 바꾸기 전 원래 제목
   const state = {
     openKids: new Set(),
+    pvHide: true,
     on: false,
     template: 'sheet',  // mail | sheet | approval
     pv: null,           // 미리보기 팝업에 띄운 항목 id
@@ -1120,9 +1121,19 @@
   }
 
   const findItem = (id) => state.items.find((x) => x.id === id) || state.detail?.related?.find((x) => x.id === id) || state.starred[id];
+  // 유튜브 영상 주소 → 영상 id (팝업 안에서 바로 틀 수 있어요)
+  const ytId = (url) => {
+    if (!url) return '';
+    const m = String(url).match(/[?&]v=([\w-]{6,})/) || String(url).match(/youtu\.be\/([\w-]{6,})/)
+      || String(url).match(/youtube\.com\/(?:embed|shorts|live)\/([\w-]{6,})/);
+    return m ? m[1] : '';
+  };
+
   function openPreview(item) {
     state.pv = item.id;
     state.seen[item.id] = 1; store.set('mmSeen', state.seen);
+    // 유튜브는 페이지를 읽어 오는 대신 팝업 안에서 바로 틀어요 (소리만 듣고 화면은 가릴 수 있게)
+    if (ytId(item.link)) { state.pvHide = true; render(); return; }
     queuePreview(item);
     render();
   }
@@ -1130,8 +1141,9 @@
   function previewHtml(t) {
     const item = state.pv && findItem(state.pv);
     if (!item) return '';
-    const p = previews.get(item.id) || { status: 'loading', data: item };
-    const loading = p.status === 'loading';
+    const vid = ytId(item.link);
+    const p = previews.get(item.id) || { status: vid ? 'done' : 'loading', data: item };
+    const loading = !vid && p.status === 'loading';
     return `<div class="modal" data-act="close-pv"><div class="mbox" data-box>
       <div class="mhead"><b>${esc(t.name)} · 미리보기</b><span class="sp"></span>
         ${loading ? '<span class="spin">불러오는 중…</span>' : '<button data-act="pv-reload" title="다시 불러오기">⟳</button>'}
@@ -1139,7 +1151,12 @@
         <button data-act="pv-newtab" title="새 탭에서 열기">새 탭</button>
         <button data-act="close-pv" title="닫기 (Esc)">✕</button></div>
       ${p.note ? `<div class="mnote">${esc(p.note)}</div>` : ''}
-      <div class="mbody">${t.detail(p.data)}</div></div></div>`;
+      <div class="mbody">${vid ? `<div class="vidbox ${state.pvHide ? 'hidden' : ''}">
+          <iframe src="https://www.youtube-nocookie.com/embed/${esc(vid)}?autoplay=1&rel=0" allow="autoplay; encrypted-media" referrerpolicy="origin"></iframe>
+          <div class="vidmask">소리만 나오는 중 · 마우스를 올리면 보여요</div>
+        </div>
+        <div class="vidbar"><button data-act="pv-hide">${state.pvHide ? '화면 보기' : '화면 가리기'}</button><span class="dim">${esc(item.title)}</span></div>`
+        : t.detail(p.data)}</div></div></div>`;
   }
 
   // 목록 안에서 리뷰 펼치기: 리뷰 칸(💬 / 거래수 / 의견)을 누르면 그 줄 아래에 리뷰가 펼쳐져요.
@@ -1658,6 +1675,14 @@
   .rvl{display:flex;gap:10px;align-items:baseline;padding:2px 0;font-size:12px;color:#3c4043;line-height:1.5}
   .rvl b{flex:none;min-width:70px;font-weight:700}.rvm{flex:none;color:#5f6368;min-width:110px}.rvt{flex:1;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
   .rvl.dim{color:#80868b}[data-rvmore]{cursor:pointer}
+  .vidbox{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:6px;overflow:hidden}
+  .vidbox iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  .vidmask{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#f8f9fa;color:#5f6368;font-size:13px}
+  .vidbox.hidden .vidmask{display:flex}
+  .vidbox.hidden:hover .vidmask{display:none}
+  .vidbar{display:flex;gap:10px;align-items:center;padding:8px 2px}
+  .vidbar button{border:1px solid #dadce0;background:#fff;border-radius:14px;padding:4px 12px;font:inherit;cursor:pointer}
+  .vidbar .dim{color:#5f6368;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .pop canvas{display:none;border-radius:4px;max-width:none}
   .pop{position:fixed;z-index:9;pointer-events:none;background:#fff;border:1px solid #dadce0;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.18);padding:6px;display:none}
   .pop img{display:block;max-width:var(--zoom,320px);max-height:var(--zoom,320px);object-fit:contain}
@@ -1896,6 +1921,7 @@
       const it = state.pv && findItem(state.pv);
       if (act === 'pv-open' && it?.link) { location.href = it.link; return; }
       if (act === 'pv-newtab' && it?.link) { window.open(it.link, '_blank'); return; }
+      if (act === 'pv-hide') { state.pvHide = !state.pvHide; render(); return; }
       if ((act === 'pv-reload' || act === 'reviews') && it) { queuePreview(it, true); return; }
       return; // 미리보기 안의 다른 곳은 아무 동작 없음
     }
