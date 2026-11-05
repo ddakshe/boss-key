@@ -2115,7 +2115,7 @@
 
   // 설정: 전체 설정 위에 이 사이트만의 설정(있으면)을 덮어요.
   const CFG_KEYS = ['template', 'strength', 'wheel', 'related', 'ads', 'reviews', 'thumb', 'zoom', 'rowClick', 'labels', 'quickKey', 'escHide', 'coverKey'];
-  const globalCfg = { template: 'sheet', strength: 'normal', wheel: true, related: 'show', ads: 'show', reviews: 'show', thumb: 45, zoom: 380, rowClick: 'preview', labels: 'disguise', quickKey: 'Backquote', escHide: true, coverKey: 'Backquote' };
+  const globalCfg = { template: 'sheet', strength: 'normal', wheel: true, related: 'show', ads: 'show', reviews: 'show', thumb: 45, zoom: 380, rowClick: 'preview', labels: 'real', quickKey: 'Backquote', escHide: true, coverKey: 'Backquote' };
   let siteCfg = null;
   function applyCfg() {
     const c = { ...globalCfg, ...(siteCfg || {}) };

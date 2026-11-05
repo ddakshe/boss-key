@@ -2,7 +2,7 @@
 // 설정은 chrome.storage에 저장하고, 각 탭의 content.js가 storage 변화를 보고 바로 따라가요.
 // 공통 설정: mm_<키>,  이 사이트만의 설정: mmSite:<origin> = { 키: 값 }
 const $ = (s) => document.querySelector(s);
-const DEFAULTS = { template: 'sheet', strength: 'normal', wheel: true, related: 'show', ads: 'show', reviews: 'show', thumb: 45, zoom: 380, rowClick: 'preview', labels: 'disguise', quickKey: 'Backquote', escHide: true };
+const DEFAULTS = { template: 'sheet', strength: 'normal', wheel: true, related: 'show', ads: 'show', reviews: 'show', thumb: 45, zoom: 380, rowClick: 'preview', labels: 'real', quickKey: 'Backquote', escHide: true };
 let current = { tabId: null, origin: null, supported: false, site: null };
 
 const HINT = {
