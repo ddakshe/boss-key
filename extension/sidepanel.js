@@ -72,15 +72,16 @@ async function refresh() {
   $('#scope').textContent = site ? `${origin} 전용 설정` : '모든 사이트 공통 설정';
   $('#scope').classList.toggle('site', !!site);
 
-  if (!current.supported) {
-    $('#status').textContent = origin ? '페이지를 새로고침하면 쓸 수 있어요.' : '쓸 수 없는 페이지예요.';
-  } else if (!armed) {
-    $('#status').textContent = '꺼져 있어요.';
-  } else {
-    $('#status').textContent = status.showing
-      ? (status.count ? `위장 중 · 항목 ${status.count}개` : '위장 중 · 상세 화면 또는 본문 모양')
-      : '켜져 있어요 · 지금은 원래 화면';
-  }
+  // 상태는 패널에서 제일 잘 보여야 해요 ('읽는 중'을 멈춘 걸로 오해하지 않게)
+  const st = $('#status');
+  const set = (tone, text) => { st.className = 'status ' + tone; st.textContent = text; };
+  if (!current.supported) set('off', origin ? '페이지를 새로고침하면 쓸 수 있어요' : '이 페이지에서는 못 써요');
+  else if (!armed) set('off', '꺼짐 — 스위치를 켜거나 ` 로 덮기');
+  else if (!status.showing) set('ok', '켜짐 — 지금은 원래 화면');
+  else if (status.view === 'loading') set('load', '읽는 중…');
+  else if (status.view === 'list') set('ok', `읽는 중 · 항목 ${status.count}개`);
+  else if (status.view === 'detail') set('ok', '위장 중 · 상세 화면');
+  else set('warn', '목록을 못 찾았어요 — ` 로 덮기');
   document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', (b.dataset.view === 'disguise') === !!status?.showing));
 
   const cfg = effective(all, site);

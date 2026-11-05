@@ -119,3 +119,24 @@ footer { color: var(--sub); font-size: 11px; padding: 4px 6px; }
   .range-row label { grid-column: 1 / -1; }
   .hint { font-size: 11px; }
 }
+
+/* 설정은 접어 둬요 — 평소에는 상태와 템플릿만 보여요 */
+.more { margin-bottom: 10px; }
+.more > summary { cursor: pointer; list-style: none; padding: 11px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; font-size: 13px; font-weight: 700; color: var(--sub); }
+.more > summary::-webkit-details-marker { display: none; }
+.more > summary::after { content: ' ▾'; float: right; }
+.more[open] > summary { border-radius: 14px 14px 0 0; border-bottom: 0; }
+.more[open] > summary::after { content: ' ▴'; }
+.more[open] > .card:last-of-type { border-radius: 0 0 14px 14px; }
+.more > .card { border-radius: 0; border-top: 0; margin-bottom: 0; }
+.more > .scope { padding: 8px 14px 2px; }
+
+/* 상태 한 줄: 색 점 + 또렷한 글씨 */
+.status { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; margin-top: 3px; }
+.status::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.status.ok { color: #1e8e3e; }
+.status.load { color: #e37400; }
+.status.warn { color: #c5221f; }
+.status.off { color: var(--sub); font-weight: 400; }
+.status.load::before { animation: mmpulse 1s ease-in-out infinite; }
+@keyframes mmpulse { 0%,100% { opacity: 1; transform: scale(1) } 50% { opacity: .35; transform: scale(.7) } }

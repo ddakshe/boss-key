@@ -26,16 +26,7 @@
       <button class="seg-btn" data-view="real">원래 화면</button>
     </div>
     <div class="unsupported" id="unsupported" hidden>이 페이지에서는 쓸 수 없어요. (크롬 설정 화면, 웹스토어 등)</div>
-    <div class="opt-row override-row" id="overrideRow">
-      <div>
-        <div class="opt-title">이 사이트만 따로 설정</div>
-        <div class="hint">켜면 아래 설정이 이 사이트에만 적용돼요. 끄면 모든 사이트 공통 설정을 써요.</div>
-      </div>
-      <label class="switch"><input type="checkbox" id="override"><span></span></label>
-    </div>
   </section>
-
-  <div class="scope" id="scope">모든 사이트 공통 설정</div>
 
   <section class="card">
     <h3>템플릿</h3>
@@ -54,6 +45,19 @@
       </button>
     </div>
   </section>
+
+  <details class="more">
+    <summary>설정</summary>
+  <section class="card">
+    <div class="opt-row override-row" id="overrideRow">
+      <div>
+        <div class="opt-title">이 사이트만 따로 설정</div>
+        <div class="hint">켜면 아래 설정이 이 사이트에만 적용돼요. 끄면 모든 사이트 공통 설정을 써요.</div>
+      </div>
+      <label class="switch"><input type="checkbox" id="override"><span></span></label>
+    </div>
+  </section>
+  <div class="scope" id="scope">모든 사이트 공통 설정</div>
 
   <section class="card">
     <h3>숫자·이미지</h3>
@@ -141,6 +145,10 @@
     </div>
   </section>
 
+  </details>
+
+  <details class="more">
+    <summary>어디서 되나요</summary>
   <section class="card">
     <h3>해 본 사이트 <span class="count" id="triedCount"></span></h3>
     <p class="hint">사이트마다 따로 맞춘 게 아니라 화면 모양을 보고 읽어요. 여기 없는 쇼핑·숙소·채용 사이트도 대개 되고, 어긋나면 알려 주세요.</p>
@@ -158,6 +166,8 @@
     </div>
     <p class="hint">아직 못 해 본 것: 테무(로그인 벽)·쉬인(봇 확인)·옥션(봇 확인). 되는지 알려 주시면 넣을게요</p>
   </section>
+
+  </details>
 
   <section class="card">
     <h3>켜 둔 사이트 <span class="count" id="siteCount"></span></h3>

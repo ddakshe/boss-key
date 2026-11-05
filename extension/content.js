@@ -1862,7 +1862,10 @@
     // (테무·쉬인처럼 카드를 못 읽는 곳에서 '품목: 로그인/회원가입'이 나오던 문제)
     else if (state.folder !== 'starred' && !state.items.length && state.detail
       && (isDetailPage() || state.detail.price != null)) content = t.detail(state.detail);
-    else if (!showing.length) content = `<div class="empty">${state.folder === 'starred' ? '별표한 항목이 없어요.' : '이 페이지에서 목록을 찾지 못했어요. 스크롤하거나 새로고침하면 다시 찾아요.'}</div>`;
+    else if (!showing.length) content = state.folder === 'starred'
+      ? '<div class="empty">별표한 항목이 없어요.</div>'
+      : `<div class="empty">이 페이지에서 목록을 찾지 못했어요.<br><small>스크롤하면 다시 찾아요. 이 사이트가 원래 안 읽히면 <b>\`</b> 로 덮어쓸 수 있어요.</small>
+         <div><button class="morebtn" data-act="refresh">다시 찾기</button></div></div>`;
     else content = t.list(showing) + (state.folder === 'inbox' ? `<div class="more">${showing.length}개 · <button data-act="loadmore">더 불러오기</button>${nextLink ? '<button data-act="next">다음 페이지 ›</button>' : ''}</div>` : '');
 
     root.innerHTML = `<style>${CSS}</style>
@@ -2312,7 +2315,8 @@
     chrome.runtime.onMessage.addListener((msg, _s, reply) => {
       if (msg?.type === 'mm-toggle') window.__mmToggle();
       // 사이드패널이 물어보면 지금 상태를 알려줘요.
-      if (msg?.type === 'mm-status') reply({ site: ORIGIN, armed, showing: state.on, count: state.items.length });
+      if (msg?.type === 'mm-status') reply({ site: ORIGIN, armed, showing: state.on, count: state.items.length,
+        view: state.items.length ? 'list' : !state.on ? 'off' : stillLoading() ? 'loading' : state.detail ? 'detail' : 'empty' });
       if (msg?.type === 'mm-view') { if (msg.disguise) showDisguise(); else showReal(); reply({ ok: true }); }
     });
   }
