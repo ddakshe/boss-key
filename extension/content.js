@@ -1627,7 +1627,7 @@
           <select data-set="strength"><option value="weak" ${state.strength === 'weak' ? 'selected' : ''}>숫자 그대로</option><option value="normal" ${state.strength === 'normal' ? 'selected' : ''}>숫자 위장</option><option value="strong" ${state.strength === 'strong' ? 'selected' : ''}>이미지도 숨김</option></select>
           <select data-set="wheel" title="원래 화면에서 휠을 굴리면 바로 이 화면으로 바뀌어요. 진짜 스크롤은 Shift+휠."><option value="1" ${state.wheel ? 'selected' : ''}>휠 전환 켬</option><option value="" ${state.wheel ? '' : 'selected'}>휠 전환 끔</option></select>
           <button class="off" data-act="panel" title="설정 패널 열기 (Alt+Shift+S)">⚙</button>
-          <button class="off" data-act="disarm" title="이 사이트에서 끄기">⏻</button>
+          <button class="off" data-act="disarm" title="이 사이트에서 끄기 (되돌릴 수 있어요)">⏻</button>
         </div>
         <div class="side">${sb}</div>
         <div class="main"><div class="bar"><span>☐</span><button data-act="refresh">⟳</button>${state.items.length ? `<button data-act="rv-all" title="위쪽 10개의 리뷰를 차례로 불러와 펼쳐요">💬 ${state.template === 'mail' ? '답장' : '의견'} 펼치기</button>${state.openRv.size ? '<button data-act="rv-close">접기</button>' : ''}` : ''}<span class="sp"></span>
@@ -1885,7 +1885,25 @@
   }
 
   async function arm() { armed = true; await store.set('mmOn:' + ORIGIN, true); showDisguise(); }
-  async function disarm() { armed = false; showReal(); await store.set('mmOn:' + ORIGIN, false); }
+  async function disarm() { armed = false; showReal(); offToast(); await store.set('mmOn:' + ORIGIN, false); }
+
+  // ⏻ 는 ⚙ 바로 옆이라 잘못 누르기 쉬워요. 끈 뒤 잠깐 '되돌리기'를 보여줘서,
+  // 껐는지도 모른 채 "왜 이 사이트는 안 켜지지" 하는 일이 없게 해요.
+  function offToast() {
+    document.getElementById('mm-toast')?.remove();
+    const el = document.createElement('div');
+    el.id = 'mm-toast';
+    const sh = el.attachShadow({ mode: 'open' });
+    sh.innerHTML = `<style>
+      .t{position:fixed;right:16px;bottom:16px;z-index:2147483647;display:flex;gap:12px;align-items:center;
+        background:#202124;color:#e8eaed;border-radius:8px;padding:10px 14px;
+        font:13px/1.4 "Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+      button{border:0;background:none;color:#8ab4f8;font:inherit;font-weight:700;cursor:pointer;padding:0}
+    </style><div class="t"><span>이 사이트에서 껐어요</span><button>되돌리기</button></div>`;
+    sh.querySelector('button').addEventListener('click', () => { el.remove(); arm(); });
+    document.documentElement.appendChild(el);
+    setTimeout(() => el.remove(), 6000);
+  }
 
   // 단축키: 꺼져 있으면 켜고 위장 화면으로, 켜져 있으면 위장 화면 ↔ 원래 화면
   if (!IS_TOP) { runPreviewWorker(); return; }
