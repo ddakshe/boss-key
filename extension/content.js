@@ -1557,6 +1557,7 @@
   .rvl{display:flex;gap:10px;align-items:baseline;padding:2px 0;font-size:12px;color:#3c4043;line-height:1.5}
   .rvl b{flex:none;min-width:70px;font-weight:700}.rvm{flex:none;color:#5f6368;min-width:110px}.rvt{flex:1;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
   .rvl.dim{color:#80868b}[data-rvmore]{cursor:pointer}
+  .pop canvas{display:none;border-radius:4px;max-width:none}
   .pop{position:fixed;z-index:9;pointer-events:none;background:#fff;border:1px solid #dadce0;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.18);padding:6px;display:none}
   .pop img{display:block;max-width:var(--zoom,320px);max-height:var(--zoom,320px);object-fit:contain}
   .pop .cap{max-width:var(--zoom,320px);font-size:12px;color:#3c4043;padding:6px 2px 0;white-space:pre-line}
@@ -1636,7 +1637,7 @@
     root.addEventListener('click', onClick);
     root.addEventListener('mouseover', onHover);
     root.addEventListener('mousemove', onMove);
-    root.addEventListener('mouseout', (e) => { if (e.target.dataset?.big) hidePop(); });
+    root.addEventListener('mouseout', (e) => { if (e.target.dataset?.big || e.target.closest?.('[data-peek]')) hidePop(); });
     root.addEventListener('change', onChange);
     root.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.classList.contains('q')) doSearch(e.target.value); });
     root.addEventListener('scroll', onScroll, true);
@@ -1708,12 +1709,12 @@
           <button class="off" data-act="disarm" title="이 사이트에서 끄기 (되돌릴 수 있어요)">⏻</button>
         </div>
         <div class="side">${sb}</div>
-        <div class="main"><div class="bar"><span>☐</span><button data-act="refresh">⟳</button>${state.items.length ? `<button data-act="rv-all" title="위쪽 10개의 리뷰를 차례로 불러와 펼쳐요">💬 ${state.template === 'mail' ? '답장' : '의견'} 펼치기</button>${state.openRv.size ? '<button data-act="rv-close">접기</button>' : ''}` : ''}<span class="sp"></span>
+        <div class="main"><div class="bar"><span>☐</span><button data-act="refresh">⟳</button>${videoEl() ? '<button data-peek title="마우스를 올린 동안만 보여요. 소리는 계속 나와요.">🎞 첨부 미리보기</button>' : ''}${state.items.length ? `<button data-act="rv-all" title="위쪽 10개의 리뷰를 차례로 불러와 펼쳐요">💬 ${state.template === 'mail' ? '답장' : '의견'} 펼치기</button>${state.openRv.size ? '<button data-act="rv-close">접기</button>' : ''}` : ''}<span class="sp"></span>
           ${state.sorts ? `<select data-set="sitesort" title="사이트의 정렬을 그대로 써요">${state.sorts.map((o, i) => `<option value="${i}" ${o.on ? 'selected' : ''} title="${esc(o.label)}">${esc(sortName(o.label))}</option>`).join('')}</select>` : ''}
           <select data-set="sort" ${state.sorts ? 'hidden' : ''}><option value="default">기본 정렬</option><option value="price" ${state.sort === 'price' ? 'selected' : ''}>${state.template === 'mail' ? '크기순' : '금액순'}</option><option value="rating" ${state.sort === 'rating' ? 'selected' : ''}>${state.template === 'mail' ? '시간순' : '가중치순'}</option><option value="date" ${state.sort === 'date' ? 'selected' : ''}>날짜순</option></select>
         </div>${content}</div>
         ${previewHtml(t)}
-        <div class="pop"><img alt=""><div class="cap"></div></div>
+        <div class="pop"><img alt=""><canvas></canvas><div class="cap"></div></div>
       </div>`;
     inlineReviews();
     labelize();
@@ -1840,7 +1841,33 @@
   }
 
   function pop() { return root.querySelector('.pop'); }
+  // 이 페이지에서 지금 틀어져 있는 영상 (유튜브 재생 화면 등)
+  function videoEl() {
+    return [...DOC.querySelectorAll('video')]
+      .filter((v) => v.videoWidth > 0 && !v.paused && v.getBoundingClientRect().width >= 160)
+      .sort((a, b) => b.getBoundingClientRect().width - a.getBoundingClientRect().width)[0] || null;
+  }
+
+  // 영상은 멈추지 않아요. 가려 두기만 해서 소리는 그대로 나오고,
+  // 마우스를 올린 동안만 화면을 베껴 보여줘요.
+  let peekTimer = 0;
+  function startPeek(e) {
+    const v = videoEl(); const p = pop();
+    if (!v || !p) return;
+    const c = p.querySelector('canvas'); const img = p.querySelector('img');
+    img.style.display = 'none'; c.style.display = 'block';
+    c.width = state.zoom;
+    c.height = Math.round(state.zoom * (v.videoHeight || 9) / (v.videoWidth || 16));
+    p.querySelector('.cap').textContent = '마우스를 올린 동안만 보여요 · 소리는 계속 나와요';
+    const draw = () => { try { c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); } catch {} };
+    draw();
+    clearInterval(peekTimer); peekTimer = setInterval(draw, 120);
+    p.style.display = 'block';
+    onMove(e);
+  }
+
   function onHover(e) {
+    if (e.target.closest('[data-peek]')) return startPeek(e);
     const el = e.target.closest('[data-big]');
     if (!el) return;
     const p = pop(); if (!p) return;
@@ -1855,7 +1882,13 @@
     const z = state.zoom + 20; const x = Math.max(8, Math.min(e.clientX + 18, innerWidth - z)), y = Math.max(8, Math.min(e.clientY + 12, innerHeight - z - 60));
     p.style.left = x + 'px'; p.style.top = Math.max(8, y) + 'px';
   }
-  function hidePop() { const p = pop(); if (p) p.style.display = 'none'; }
+  function hidePop() {
+    clearInterval(peekTimer);
+    const p = pop(); if (!p) return;
+    p.style.display = 'none';
+    const c = p.querySelector('canvas'); if (c) c.style.display = 'none';
+    const img = p.querySelector('img'); if (img) img.style.display = '';
+  }
 
   let scrollTimer;
   function onScroll(e) {
