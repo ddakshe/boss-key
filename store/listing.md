@@ -57,8 +57,13 @@
 
 ## 개인정보처리방침 URL
 ```
-https://github.com/<계정>/boss-key/blob/main/PRIVACY.md
+https://github.com/ddakshe/boss-key/blob/main/PRIVACY.md
 ```
+> ⚠️ 이 주소가 열리려면 저장소가 **공개**여야 해요. 지금은 비공개입니다.
+> `gh repo edit ddakshe/boss-key --visibility public --accept-visibility-change-consequences`
+> 공개 전 점검은 끝냈어요 — 키·토큰·비밀번호 없고, 메일주소는 위장 화면에 쓰는
+> 가짜(`noreply@team.local`)뿐이에요. 다만 커밋 작성자 메일(`ddakshe@gmail.com`)은
+> 공개 저장소에서 늘 보이는 값이에요.
 
 ## 권한 사용 사유 (심사에서 묻는 항목)
 
