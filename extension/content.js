@@ -2115,7 +2115,7 @@
 
   // 설정: 전체 설정 위에 이 사이트만의 설정(있으면)을 덮어요.
   const CFG_KEYS = ['template', 'strength', 'wheel', 'related', 'ads', 'reviews', 'thumb', 'zoom', 'rowClick', 'labels', 'quickKey', 'escHide', 'coverKey'];
-  const globalCfg = { template: 'sheet', strength: 'normal', wheel: true, related: 'show', ads: 'show', reviews: 'show', thumb: 45, zoom: 380, rowClick: 'preview', labels: 'disguise', quickKey: 'Backquote', escHide: true, coverKey: 'Space' };
+  const globalCfg = { template: 'sheet', strength: 'normal', wheel: true, related: 'show', ads: 'show', reviews: 'show', thumb: 45, zoom: 380, rowClick: 'preview', labels: 'disguise', quickKey: 'Backquote', escHide: true, coverKey: 'Backquote' };
   let siteCfg = null;
   function applyCfg() {
     const c = { ...globalCfg, ...(siteCfg || {}) };
@@ -2131,7 +2131,7 @@
     state.labels = c.labels === 'real' ? 'real' : 'disguise';   // 메뉴·칸 이름: 위장 | 원래 문구
     state.quickKey = c.quickKey === 'off' ? 'off' : 'Backquote'; // ` 키 하나로 전환
     state.escHide = c.escHide !== false;                          // Esc로 숨기기
-    state.coverKey = c.coverKey === 'off' ? 'off' : 'Space';      // 스페이스로 어디서나 덮기
+    state.coverKey = ['Backquote', 'Space', 'off'].includes(c.coverKey) ? c.coverKey : 'Backquote'; // 어디서나 덮기
   }
   async function saveSetting(k, v) {
     if (siteCfg) { siteCfg = { ...siteCfg, [k]: v }; await store.set('mmSite:' + ORIGIN, siteCfg); }
@@ -2278,11 +2278,11 @@
     if (e.key === 'Escape' && state.escHide && !state.on) showDisguise();
   }, true);
 
-  // 라이트: 스페이스 한 번이면 어느 사이트든 덮여요 (글자를 치는 중이면 그대로)
+  // 라이트: 켜 두지 않은 사이트에서도 ` 한 번이면 덮여요 (글자를 치는 중이면 그대로)
+  // 켜 둔 사이트에서는 위의 ` 가 '진짜 내용을 읽은' 위장 화면을 보여주니 이쪽은 비켜요.
   document.addEventListener('keydown', (e) => {
-    if (state.coverKey === 'off' || e.ctrlKey || e.altKey || e.metaKey || e.isComposing || typing(e)) return;
-    if (e.code !== 'Space') return;
-    if (state.on) return; // 이미 위장 화면이면 그대로 둬요
+    if (state.coverKey === 'off' || armed || e.ctrlKey || e.altKey || e.metaKey || e.isComposing || typing(e)) return;
+    if (e.code !== state.coverKey) return;
     e.preventDefault(); e.stopPropagation();
     covered ? coverOff() : coverOn();
   }, true);
