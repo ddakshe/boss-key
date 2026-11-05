@@ -1976,6 +1976,7 @@
     if (act === 'back') { history.back(); return; }
     if (act === 'reviews') return loadReviews();
     if (act === 'disarm') return disarm();
+    if (act === 'uncover') return coverOff();
     if (act === 'panel') { if (hasChrome) chrome.runtime.sendMessage({ type: 'mm-open-panel' }).catch(() => {}); return; }
     if (act === 'loadmore') return loadMore();
     if (act === 'next') { findNext()?.click(); setTimeout(scan, 1500); return; }
@@ -2113,8 +2114,8 @@
   }
 
   // 설정: 전체 설정 위에 이 사이트만의 설정(있으면)을 덮어요.
-  const CFG_KEYS = ['template', 'strength', 'wheel', 'related', 'ads', 'reviews', 'thumb', 'zoom', 'rowClick', 'labels', 'quickKey', 'escHide'];
-  const globalCfg = { template: 'sheet', strength: 'normal', wheel: true, related: 'show', ads: 'show', reviews: 'show', thumb: 45, zoom: 380, rowClick: 'preview', labels: 'disguise', quickKey: 'Backquote', escHide: true };
+  const CFG_KEYS = ['template', 'strength', 'wheel', 'related', 'ads', 'reviews', 'thumb', 'zoom', 'rowClick', 'labels', 'quickKey', 'escHide', 'coverKey'];
+  const globalCfg = { template: 'sheet', strength: 'normal', wheel: true, related: 'show', ads: 'show', reviews: 'show', thumb: 45, zoom: 380, rowClick: 'preview', labels: 'disguise', quickKey: 'Backquote', escHide: true, coverKey: 'Space' };
   let siteCfg = null;
   function applyCfg() {
     const c = { ...globalCfg, ...(siteCfg || {}) };
@@ -2130,11 +2131,70 @@
     state.labels = c.labels === 'real' ? 'real' : 'disguise';   // 메뉴·칸 이름: 위장 | 원래 문구
     state.quickKey = c.quickKey === 'off' ? 'off' : 'Backquote'; // ` 키 하나로 전환
     state.escHide = c.escHide !== false;                          // Esc로 숨기기
+    state.coverKey = c.coverKey === 'off' ? 'off' : 'Space';      // 스페이스로 어디서나 덮기
   }
   async function saveSetting(k, v) {
     if (siteCfg) { siteCfg = { ...siteCfg, [k]: v }; await store.set('mmSite:' + ORIGIN, siteCfg); }
     else { globalCfg[k] = v; await store.set('mm_' + k, v); }
     applyCfg();
+  }
+
+  // ---------- 라이트: 어느 사이트에서든 스페이스 한 번으로 덮어요 ----------
+  // 그 사이트를 읽지 않아요. 읽을 수 없는 곳에서도 바로 덮이는 게 목적이에요.
+  let covered = false;
+  const COVER_ROWS = [
+    ['A-2411', '사무용 의자 (중형)', 189000, '11-18', '검수'],
+    ['A-2412', '모니터 암 듀얼', 74500, '11-19', ''],
+    ['A-2413', 'A4 복사용지 5박스', 128000, '11-20', '정상'],
+    ['A-2414', '무선 키보드 세트', 56900, '11-20', ''],
+    ['A-2415', '회의실 화이트보드', 243000, '11-21', '보증'],
+    ['A-2416', '노트북 거치대', 38000, '11-21', ''],
+    ['A-2417', '공유기 (기가)', 92000, '11-24', '검수'],
+    ['A-2418', '문서 세단기', 317000, '11-24', ''],
+    ['A-2419', '커피 원두 2kg', 41800, '11-25', '정상'],
+    ['A-2420', '토너 카트리지', 136500, '11-25', ''],
+    ['A-2421', '책상 정리함', 23400, '11-26', ''],
+    ['A-2422', 'USB-C 허브', 67000, '11-26', '보증'],
+    ['A-2423', '공기청정기 필터', 88000, '11-27', ''],
+    ['A-2424', '이동식 서랍장', 154000, '11-27', '검수'],
+    ['A-2425', '라벨 프린터', 209000, '11-28', ''],
+  ];
+  function coverHtml() {
+    const cols = ['', 'A', 'B', 'C', 'D', 'E', 'F'];
+    const head = ['No', '문서번호', '품목', '단가', '납기', '비고'];
+    const sum = COVER_ROWS.reduce((a, r) => a + r[2], 0);
+    return `<style>${CSS}</style>
+      <div class="app nosb">
+        <div class="top"><div class="logo">${templates.sheet.icon}<span>스프레드시트</span></div>
+          <div class="search">🔍<input class="q" placeholder="스프레드시트에서 검색"></div>
+          <button class="off" data-act="uncover" title="원래 화면으로 (스페이스)">⏻</button>
+        </div>
+        <div class="main"><div class="bar"><span>☐</span><span class="sp"></span></div>
+          <div class="sheet"><div class="fx"><span>fx</span><input value="=SUM(D2:D${COVER_ROWS.length + 1})" readonly></div>
+          <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:90px"><col><col style="width:110px"><col style="width:90px"><col style="width:70px"></colgroup>
+          <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
+          <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
+          ${COVER_ROWS.map((r, i) => `<tr><th>${i + 2}</th><td>${i + 1}</td><td>${r[0]}</td><td class="item">${esc(r[1])}</td>
+            <td class="n">${r[2].toLocaleString()}</td><td>2026-${r[3]}</td><td>${r[4]}</td></tr>`).join('')}
+          <tr><th>${COVER_ROWS.length + 2}</th><td></td><td></td><td class="item">합계</td><td class="n">${sum.toLocaleString()}</td><td></td><td></td></tr>
+          </tbody></table>${sheetTabs()}</div>
+        </div>
+      </div>`;
+  }
+  function coverOn() {
+    if (covered || state.on) return;
+    covered = true;
+    ensureHost();
+    root.innerHTML = coverHtml();
+    document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+    setTab(templates.sheet);
+  }
+  function coverOff() {
+    if (!covered) return;
+    covered = false;
+    host?.remove(); host = null; root = null;
+    document.documentElement.style.removeProperty('overflow');
+    restoreTab();
   }
 
   // armed = 이 사이트에서 켜 둠, state.on = 지금 위장 화면을 보여주는 중
@@ -2216,6 +2276,15 @@
       return;
     }
     if (e.key === 'Escape' && state.escHide && !state.on) showDisguise();
+  }, true);
+
+  // 라이트: 스페이스 한 번이면 어느 사이트든 덮여요 (글자를 치는 중이면 그대로)
+  document.addEventListener('keydown', (e) => {
+    if (state.coverKey === 'off' || e.ctrlKey || e.altKey || e.metaKey || e.isComposing || typing(e)) return;
+    if (e.code !== 'Space') return;
+    if (state.on) return; // 이미 위장 화면이면 그대로 둬요
+    e.preventDefault(); e.stopPropagation();
+    covered ? coverOff() : coverOn();
   }, true);
 
   // 시험용(확장프로그램이 아닌 곳에 직접 넣었을 때만): 내부를 들여다볼 수 있게
