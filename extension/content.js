@@ -808,6 +808,29 @@
     return !!(t && t.length >= 4 && buyButton() && titleElement());
   }
 
+  // 사이트 머리말·꼬리말·전역 메뉴: 상품 내용이 아니에요.
+  // (네이버처럼 로그인 상태의 GNB가 통째로 들어오면 계정 메일주소까지 본문에 섞여요)
+  const CHROME_SEL = 'header,nav,footer,aside,[role="banner"],[role="navigation"],[role="contentinfo"],#gnb,.gnb,#header,.header,#footer,.footer,#lnb,.lnb,#snb,.snb';
+  const inPageChrome = (el) => !!el?.closest?.(CHROME_SEL);
+  const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.]{2,}/;
+
+  // 덩어리의 글자를 모으되 머리말·꼬리말은 건너뛰어요.
+  function detailText(root) {
+    if (!root) return '';
+    const bad = new Set(root.querySelectorAll(CHROME_SEL));
+    if (!bad.size) return root.innerText || '';
+    const out = [];
+    const walk = (n) => {
+      for (const c of n.children) {
+        if (c.id === 'mm-host' || bad.has(c)) continue;
+        if (c.querySelector(CHROME_SEL)) walk(c);
+        else if (c.innerText) out.push(c.innerText);
+      }
+    };
+    walk(root);
+    return out.join('\n');
+  }
+
   function detailRoot() {
     // 제목(h1)에서 위로 올라가며 가격과 큰 이미지를 함께 품는 덩어리를 찾아요.
     const h1 = titleElement();
@@ -818,7 +841,7 @@
       const hasImg = [...el.querySelectorAll('img')].some((im) => im.getBoundingClientRect().width >= 200);
       if (hasPrice && hasImg) return el;
     }
-    return h1?.closest('main,[role="main"],article') || DOC.body;
+    return h1?.closest('main,[role="main"],article') || DOC.querySelector('main,[role="main"],article') || DOC.body;
   }
 
   function findReviews() {
@@ -872,15 +895,15 @@
     // 갤러리: 상품 사진들 → 첨부파일
     f.gallery = [...new Set([...main.querySelectorAll('img')].filter((im) => im.getBoundingClientRect().width >= 60 && im.getBoundingClientRect().height >= 60).map((im) => im.currentSrc || im.src).filter(Boolean))].slice(0, 8);
     // 핵심 내용: 상세 덩어리 안의 짧은 줄 (옵션·배송·위치·일정 등)
-    f.facts = [...new Set((main.innerText || '').split('\n').map(norm))]
-      .filter((t) => t.length >= 3 && t.length <= 60 && t !== f.title && !PRICE_RE.test(t) && !/^[\d.,%()\s:+]+$/.test(t) && !BUY_RE.test(t) && !/적립|쿠폰|캐시|광고|공유|신고|찜|보기|열기|닫기|더보기|카테고리|^홈|>|스토어|로그인|선택하세요|수량/.test(t))
+    f.facts = [...new Set(detailText(main).split('\n').map(norm))]
+      .filter((t) => t.length >= 3 && t.length <= 60 && t !== f.title && !PRICE_RE.test(t) && !/^[\d.,%()\s:+]+$/.test(t) && !BUY_RE.test(t) && !/적립|쿠폰|캐시|광고|공유|신고|찜|보기|열기|닫기|더보기|카테고리|^홈|>|스토어|로그인|선택하세요|수량|^\d+\s*개\s*중\s*\d+\s*번째$|^\d+\s*\/\s*\d+$/.test(t) && !EMAIL_RE.test(t))
       .slice(0, 12);
     // 본문: 페이지의 설명 문단
     const paras = [];
     (DOC.querySelector('main,[role="main"],article') || DOC.body).querySelectorAll('p,li,dd').forEach((e) => {
-      if (host?.contains(e) || main.contains(e)) return;
+      if (host?.contains(e) || main.contains(e) || inPageChrome(e)) return;
       const t = norm(e.textContent);
-      if (t.length >= 25 && t.length <= 400 && !paras.includes(t)) paras.push(t);
+      if (t.length >= 25 && t.length <= 400 && !paras.includes(t) && !EMAIL_RE.test(t)) paras.push(t);
     });
     f.body = paras.slice(0, 12);
     f.isProduct = isDetail;
@@ -1773,7 +1796,10 @@
   const LOADING_MS = 8000;
   let shownAt = 0;       // 위장 화면을 보여주기 시작한 시각
   let waitTimer = 0;
-  const stillLoading = () => document.readyState !== 'complete' || (Date.now() - shownAt < LOADING_MS && !isDetailPage());
+  // 상세 화면도 늦게 채워져요. 제목조차 없거나 값·정보·사진이 하나도 없으면 아직 그리는 중이에요.
+  const thinDetail = (d) => !d || !d.title || (d.price == null && (d.facts || []).length < 2 && !(d.gallery || []).length);
+  const stillLoading = () => document.readyState !== 'complete'
+    || (Date.now() - shownAt < LOADING_MS && (!isDetailPage() || thinDetail(state.detail)));
   function waitForList() {
     clearTimeout(waitTimer);
     waitTimer = setTimeout(() => { if (state.on) scan(); }, 500);
