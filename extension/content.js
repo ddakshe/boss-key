@@ -37,6 +37,7 @@
   const ORIGIN = siteKeyOf(location.hostname);
   let origTitle = document.title; // 우리가 탭 제목을 바꾸기 전 원래 제목
   const state = {
+    openKids: new Set(),
     on: false,
     template: 'sheet',  // mail | sheet | approval
     pv: null,           // 미리보기 팝업에 띄운 항목 id
@@ -99,6 +100,21 @@
     const hasLink = el.tagName === 'A' || el.querySelector('a[href]') || (el.querySelector('img') && el.querySelector('button,[role="button"]'));
     const t = el.innerText || '';
     return hasLink && t.length > 4 && t.length < 1500;
+  }
+
+  // 가로로 넘겨 보는 줄(캐러셀) 안에 든 것들의 이름.
+  // 넷플릭스처럼 카드에 글자가 거의 없고 포스터 그림만 있는 곳은 img alt·aria-label 로 읽어요.
+  function subItems(root) {
+    let best = [];
+    for (const el of root.querySelectorAll('*')) {
+      const kids = [...el.children];
+      if (kids.length < 3 || kids.length > 60) continue;
+      const names = kids.map((k) => norm(k.getAttribute('aria-label') || k.querySelector('img[alt]')?.alt
+        || k.querySelector('[aria-label]')?.getAttribute('aria-label') || ''))
+        .filter((t) => t.length >= 2 && t.length <= 80);
+      if (names.length >= 3 && names.length >= kids.length * 0.6 && names.length > best.length) best = names;
+    }
+    return [...new Set(best)].slice(0, 24);
   }
 
   function findCards() {
@@ -663,6 +679,8 @@
     f.car = carInfo(root, text);
     f.job = f.car ? null : jobInfo(text);
     f.stock = f.car || f.job ? null : stockInfo(text);
+    // 값도 날짜도 없는 줄은 '묶음'일 수 있어요 (넷플릭스의 가로 줄). 안엣것을 모아 둬요.
+    f.kids = !opts.detail && f.price == null && !f.stock && !f.car && !f.job ? subItems(root) : [];
     // 로고 그림 설명이 제목으로 들어오는 곳이 있어요 ('삼성전자 로고' → '삼성전자')
     if (f.title) f.title = f.title.replace(/\s*(로고|logo|BI|심볼|아이콘|icon)\s*$/i, '').trim() || f.title;
     if (f.stock && f.title) {
@@ -1104,6 +1122,28 @@
       row.classList.add('rvopen');
     }
   }
+  function toggleKids(item) {
+    if (state.openKids.has(item.id)) state.openKids.delete(item.id);
+    else state.openKids.add(item.id);
+    render();
+  }
+
+  // 펼친 줄 아래에 안엣것을 깔아요 (리뷰 펼치기와 같은 방식)
+  function inlineKids() {
+    for (const id of state.openKids) {
+      const row = [...root.querySelectorAll('.main [data-id]')].find((x) => x.dataset.id === id && !x.closest('.modal'));
+      if (!row) continue;
+      const it = state.items.find((x) => x.id === id);
+      if (!it?.kids?.length) continue;
+      const inner = `<div class="kids">${it.kids.map((t, i) => `<div class="kid"><span>${i + 1}</span>${esc(t)}</div>`).join('')}</div>`;
+      const box = row.tagName === 'TR'
+        ? Object.assign(document.createElement('tr'), { className: 'xrow', innerHTML: `<td colspan="${row.children.length}">${inner}</td>` })
+        : Object.assign(document.createElement('div'), { className: 'xrow', innerHTML: inner });
+      row.after(box);
+      row.classList.add('kidopen');
+    }
+  }
+
   function toggleRv(item) {
     if (state.openRv.has(item.id)) state.openRv.delete(item.id);
     else { state.openRv.add(item.id); queuePreview(item); }
@@ -1552,6 +1592,11 @@
   .mbody .rel{display:none}
   [data-rv]{cursor:pointer;text-decoration:underline dotted #9aa0a6;text-underline-offset:3px}[data-rv]:hover{color:#1a73e8}
   .rvopen [data-rv]{color:#1a73e8;font-weight:700}
+  .haskids .item::before{content:'▸ ';color:#5f6368}
+  .kidopen .item::before{content:'▾ ';color:#1a73e8}
+  .kids{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px 16px;padding:8px 16px 10px 46px;background:#f8f9fa}
+  .kid{font-size:12px;color:#3c4043;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .kid span{display:inline-block;min-width:18px;color:#9aa0a6}
   div.xrow{padding:4px 14px 8px 64px;background:#fbfbfb;border-bottom:1px solid #f1f3f4;font-weight:400}
   tr.xrow td{background:#fbfbfb!important;white-space:normal!important;padding:4px 10px 6px 48px!important;height:auto!important}
   .rvl{display:flex;gap:10px;align-items:baseline;padding:2px 0;font-size:12px;color:#3c4043;line-height:1.5}
@@ -1720,6 +1765,11 @@
         <div class="pop"><img alt=""><canvas></canvas><div class="cap"></div></div>
       </div>`;
     inlineReviews();
+    inlineKids();
+    root.querySelectorAll('.main [data-id]').forEach((r) => {
+      const it = state.items.find((x) => x.id === r.dataset.id);
+      if (it?.kids?.length) r.classList.add('haskids');
+    });
     labelize();
     const m = root.querySelector('.main'); if (m) m.scrollTop = mainScroll;
     const mb = root.querySelector('.mbody'); if (mb) mb.scrollTop = pvScroll;
@@ -1820,6 +1870,8 @@
         return;
       }
       if (e.ctrlKey || e.metaKey) { state.seen[id] = 1; store.set('mmSeen', state.seen); window.open(item.link, '_blank'); return; }
+      // 묶음 줄(안엣것이 있는 줄)은 들어가지 않고 그 자리에서 펼쳐요
+      if (item.kids?.length) return toggleKids(item);
       // 기본: 들어가지 않고 미리보기 팝업. (패널에서 '바로 열기'로 바꿀 수 있어요)
       if (state.rowClick !== 'open') return openPreview(item);
       state.seen[id] = 1; store.set('mmSeen', state.seen);
