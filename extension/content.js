@@ -754,6 +754,22 @@
   function buyButton() {
     let cards = null;
     const inCards = (b) => { if (!cards) { const cs = findCards(); cards = cs.length >= 4 ? cs : []; } return cards.some((c) => c.contains(b)); };
+    // 버튼이 '다른 상품·공고 줄'에 붙어 있는지: 그 줄이 이 페이지 제목과 상관없는
+    // 제 이름(긴 링크 글)을 달고 있으면 남의 줄이에요. 이 페이지 제목을 품은 덩어리를
+    // 먼저 만나면 이 페이지 것이고요.
+    let te = null, teDone = false;
+    const otherItemRow = (b) => {
+      if (!teDone) { te = titleElement(); teDone = true; }
+      const pt = norm(pageTitle());
+      if (!pt) return false;
+      for (let e = b.parentElement, i = 0; e && i < 6 && e !== DOC.body && e !== DOC.documentElement; e = e.parentElement, i++) {
+        if (te && e.contains(te)) return false;
+        const t = [...e.querySelectorAll('a[href]')].map((a) => norm(a.textContent))
+          .find((x) => x.length >= 10 && !BUY_RE.test(x));
+        if (t && !pt.includes(t) && !t.includes(pt)) return true;
+      }
+      return false;
+    };
     return [...DOC.querySelectorAll('button,a,input[type="submit"],[role="button"]')]
       // '판매자 문의하기'는 norm이 '판매자'를 화면 낭독용 말머리로 보고 떼어내서, 원래 글로도 한 번 더 봐요
       .find((b) => !host?.contains(b) && (BUY_RE.test(norm(b.textContent || b.value)) || BUY_RE.test(String(b.textContent || b.value || '').replace(/\s+/g, ' ').trim())) && visible(b) && !inRepeatedCard(b)
@@ -764,6 +780,8 @@
         && !b.closest('[class*="swiper" i],[class*="slick" i],[class*="carousel" i],[class*="owl-" i]')
         // 꼬리말(사이트 맨 아래 링크 모음)의 '견적 내기'·'구매 상담'도 구매 버튼이 아니에요 (기아)
         && !inSiteFooter(b)
+        // 목록·추천 줄에 붙은 '입사지원'은 남의 공고 것이에요 (사람인 기업 카드·추천 공고)
+        && !otherItemRow(b)
         && !(b.tagName === 'A' && /cart|basket|장바구니/i.test(b.getAttribute('href') || '') && /^장바구니$/.test(norm(b.textContent)))
         // 목록 위 '전체선택 · 장바구니 · 선물하기' 막대는 고른 상품을 한꺼번에 담는 버튼이에요 (교보문고)
         && !(() => { for (let e = b.parentElement, i = 0; e && i < 4; e = e.parentElement, i++) if (/^전체\s*선택|select all/i.test(norm(e.innerText || ''))) return true; return false; })()
