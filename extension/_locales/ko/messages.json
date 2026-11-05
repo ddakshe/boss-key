@@ -1,0 +1,7 @@
+{
+  "appName":  { "message": "일하는중" },
+  "appDesc":  { "message": "보고 있는 목록을 스프레드시트·메일함·결재함 모양으로 바꿔서 보여줘요. ` 키 하나로 전환해요." },
+  "cmdToggle":{ "message": "위장 화면 ↔ 원래 화면 (꺼진 사이트면 켜기)" },
+  "cmdPanel": { "message": "설정 패널 열기" },
+  "actTitle": { "message": "일하는중 패널 열기" }
+}

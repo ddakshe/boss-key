@@ -478,7 +478,7 @@
 
   // 제목·판매자가 될 수 없는 글 (리뷰 수, 배지 등)
   const NOT_TITLE = /^(리뷰|(일반|공식|인증|브랜드)\s*상품|아이템\s*카드|후기|평점|별점|상품평|구매평|배송|무료\s*배송|배송비|찜|좋아요|쿠폰|광고|AD|Sponsored|품절|세일|특가|오늘\s*드림|오늘\s*출발|내일\s*도착|더\s*보기|자세히|장바구니|바로\s*구매|구매하기|\(?\d)/i;
-  const BADGE_WORD = /^(Skip\s.{0,20}|탄탄한.{0,8}|.{0,10}시행\s*중|.{0,8}(대기업|중견기업|공기업|공공기관|외국계|스타트업)|신입\s*지원\s*가능|경력\s*지원\s*가능|오늘\s*마감.*|내일\s*마감.*|마감\s*임박.*|믿고\s*보는.*|스크랩|인기\s*있는|인기\s*공고|추천\s*공고|급구|헤드\s*헌팅|관심\s*기업.*|진단\s*\+?|믿고|사진\s*우대|우대\s*등록|헛걸음\s*보상|홈\s*서비스|성능\s*기록(부)?|집앞\s*배송|환불\s*가능|무사고|.{0,10}건너뛰기|본문\s*바로\s*가기|Highly rated|Top rated|New at( \w+)?|Only at( \w+)?|Deal of the day|Clearance|Popular now|Preview seller|Star Seller|Bestseller|Etsy'?s Pick|More like this|Add to cart|게스트\s*선호|슈퍼\s*호스트|Guest\s*favou?rite|Superhost|최다\s*판매|추가\s*구매\s*선택|프라임.{0,10}|More buying choices|Prime.{0,12}|Climate Pledge.*|탄소.{0,6}|관련|Related|후원|후원\s*광고|종합\s*추천|아마존\s*추천|Amazon'?s?\s*Choice|Overall\s*Pick|Limited\s*time\s*deal|기간\s*한정\s*(딜|할인)|새\s*창\s*(에서\s*)?(이동|열기|열림)|opens? in (a )?new (window|tab)|최고|우수|매우\s*좋음|아주\s*좋음|좋음|훌륭함|만족|매우\s*만족|Exceptional|Excellent|Very good|Good|Wonderful|Superb|Fabulous|Pleasant|미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
+  const BADGE_WORD = /^((?:상승|하락|보합)\s*[\d,]+.*|Skip\s.{0,20}|탄탄한.{0,8}|.{0,10}시행\s*중|.{0,8}(대기업|중견기업|공기업|공공기관|외국계|스타트업)|신입\s*지원\s*가능|경력\s*지원\s*가능|오늘\s*마감.*|내일\s*마감.*|마감\s*임박.*|믿고\s*보는.*|스크랩|인기\s*있는|인기\s*공고|추천\s*공고|급구|헤드\s*헌팅|관심\s*기업.*|진단\s*\+?|믿고|사진\s*우대|우대\s*등록|헛걸음\s*보상|홈\s*서비스|성능\s*기록(부)?|집앞\s*배송|환불\s*가능|무사고|.{0,10}건너뛰기|본문\s*바로\s*가기|Highly rated|Top rated|New at( \w+)?|Only at( \w+)?|Deal of the day|Clearance|Popular now|Preview seller|Star Seller|Bestseller|Etsy'?s Pick|More like this|Add to cart|게스트\s*선호|슈퍼\s*호스트|Guest\s*favou?rite|Superhost|최다\s*판매|추가\s*구매\s*선택|프라임.{0,10}|More buying choices|Prime.{0,12}|Climate Pledge.*|탄소.{0,6}|관련|Related|후원|후원\s*광고|종합\s*추천|아마존\s*추천|Amazon'?s?\s*Choice|Overall\s*Pick|Limited\s*time\s*deal|기간\s*한정\s*(딜|할인)|새\s*창\s*(에서\s*)?(이동|열기|열림)|opens? in (a )?new (window|tab)|최고|우수|매우\s*좋음|아주\s*좋음|좋음|훌륭함|만족|매우\s*만족|Exceptional|Excellent|Very good|Good|Wonderful|Superb|Fabulous|Pleasant|미리\s*보기|크게\s*보기|새\s*창\s*보기|바로\s*가기|더\s*보기|상세\s*보기|담기|장바구니\s*담기|멤버스\s*특가|일일\s*특가|컬리\s*온리|Kurly\s*Only|샛별\s*배송|택배\s*배송|판매자\s*배송|희소가치.*|첫구매.*|베스트|BEST|NEW|신상|신상품|HOT|단독|독점|한정|패션위크|올영픽|추천|인기|랭킹|MD\s*PICK|PICK|무료배송|오늘드림|쿠폰|세일|SALE|특가|타임특가|광고|AD|이벤트|기획|증정|1\+1|\d+\s*%|\d+위|TOP\s*\d+|Sponsored|Best Seller|Amazon's Choice|Overall Pick)$/i;
 
   // 줄 대부분이 같은 보낸이('겨울준비')면 그건 기획전 이름이에요. 그 줄들은 다음 짧은 줄(브랜드)을 써요.
   function fixSenders(items) {
@@ -769,6 +769,12 @@
       // 줄 앞에 붙는 버튼 글과 순위를 떼어내요 ('관심종목에 추가1삼성전자' → '삼성전자')
       f.title = f.title.replace(/^(관심\s*종목에?\s*추가|관심\s*추가|즐겨찾기\s*추가|add to watchlist)\s*/i, '')
         .replace(/^\d{1,3}(?=[가-힣A-Za-z])/, '').trim() || f.title;
+      // 화면 낭독용 시세 글이 제목이 됐으면 링크 글(종목 이름)로 바꿔요 (네이버증권 '하락16,500(-7.57%)')
+      if (/^(상승|하락|보합)\s*[\d,]|^[\d,]+\s*\(/.test(f.title)) {
+        const nm = [...root.querySelectorAll('a[href]')].map((a) => norm(a.textContent))
+          .find((t) => t.length >= 2 && t.length <= 30 && !/^[\d,.%+\-()]+$/.test(t) && !/^(상승|하락|보합)/.test(t));
+        if (nm) f.title = nm.replace(/^\d{1,3}(?=[가-힣A-Za-z])/, '').trim() || nm;
+      }
       // 티커만 제목으로 잡혔으면 회사 이름을 찾아요 (야후 파이낸스)
       if (f.stock.ticker && f.title === f.stock.ticker) {
         const nm = [...root.querySelectorAll('a,span,div')].map((e) => norm(e.textContent))
@@ -1275,8 +1281,12 @@
     '기안일': '도착일', '조정': '할인율(%)', '기안': '판매자', '첨부': '사진', '결재 의견': '리뷰',
   };
   function labelize() {
-    const els = root.querySelectorAll('.fold, .compose, .tabs span, .hdr td, .appr thead th, td.k, .appr-info th, .lab, h4.sec');
+    // 칸 이름은 설정을 따르고, 왼쪽 폴더와 시트 탭은 늘 위장 이름으로 둬요.
+    // '발주내역' 이 '지금 보는 목록' 으로 바뀌면 위장이 깨지니까요.
+    const MENU_SEL = '.fold, .compose, .tabs span';
+    const els = root.querySelectorAll(MENU_SEL + ', .hdr td, .appr thead th, td.k, .appr-info th, .lab, h4.sec');
     for (const el of els) {
+      const isMenu = el.matches(MENU_SEL);
       const tn = [...el.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
       if (!tn) continue;
       const raw = tn.textContent;
@@ -1286,7 +1296,7 @@
       const key = m[2].trim();
       const name = m[3] && key === '의견' ? '리뷰' : REAL[key];
       if (!name) continue;
-      if (state.labels === 'real') { el.title = `위장 이름: ${key}`; tn.textContent = m[1] + name + (m[3] ? ' ' + m[3] : '') + m[4]; }
+      if (state.labels === 'real' && !isMenu) { el.title = `위장 이름: ${key}`; tn.textContent = m[1] + name + (m[3] ? ' ' + m[3] : '') + m[4]; }
       else el.title = `진짜: ${name}`;
     }
   }
@@ -1522,7 +1532,7 @@
         const weak = weakMode();
         if (isJobList(items)) {
           const head = ['No', '거래처', '품목', '지점', '등급', '요건', '구분', '보수', '기한', '비고'];
-          return `<div class="sheet">${fxBar(`=COUNTIF(E2:E${items.length + 1},&quot;N*&quot;)`)}
+          return `<div class="sheet">${fxBar(`=COUNTIF(E2:E${items.length + 1},"N*")`)}
           <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:130px"><col><col style="width:96px"><col style="width:70px"><col style="width:56px"><col style="width:56px"><col style="width:90px"><col style="width:84px"><col style="width:60px"></colgroup>
           <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
           <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
@@ -1534,7 +1544,7 @@
         }
         if (isBoardList(items)) {
           const head = ['No', '번호', '항목', '품목', '거래처', '거래수', '가중치', '출고수', '납기', '비고'];
-          return `<div class="sheet">${fxBar(`=COUNTIF(H2:H${items.length + 1},&quot;>100&quot;)`)}
+          return `<div class="sheet">${fxBar(`=COUNTIF(H2:H${items.length + 1},">100")`)}
           <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:72px"><col style="width:80px"><col><col style="width:110px"><col style="width:60px"><col style="width:60px"><col style="width:66px"><col style="width:84px"><col style="width:50px"></colgroup>
           <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
           <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>
@@ -1561,7 +1571,7 @@
         }
         if (isCarList(items)) {
           const head = ['No', '거래처', '품목', '단가', '기준월', '누적량', '유형', '지점', '방식', '비고'];
-          return `<div class="sheet">${fxBar(`=AVERAGEIF(G2:G${items.length + 1},&quot;G&quot;,D2:D${items.length + 1})`)}
+          return `<div class="sheet">${fxBar(`=AVERAGEIF(G2:G${items.length + 1},"G",D2:D${items.length + 1})`)}
           <table><colgroup><col style="width:40px"><col style="width:44px"><col style="width:96px"><col><col style="width:96px"><col style="width:70px"><col style="width:84px"><col style="width:56px"><col style="width:60px"><col style="width:48px"><col style="width:90px"></colgroup>
           <thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr>
           <tr class="hdr"><th>1</th>${head.map((h) => `<td>${h}</td>`).join('')}</tr></thead><tbody>

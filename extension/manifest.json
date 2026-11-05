@@ -1,14 +1,18 @@
 {
   "manifest_version": 3,
-  "name": "메일함 모드 (테스트)",
-  "version": "0.4.0",
-  "description": "쇼핑·숙박·티켓 사이트의 목록을 메일함 모양으로 바꿔 보여줘요. 단축키 Alt+Shift+M으로 위장 화면과 원래 화면을 바꿔요.",
-  "permissions": ["storage", "sidePanel", "tabs"],
+  "name": "__MSG_appName__",
+  "version": "1.0.0",
+  "description": "__MSG_appDesc__",
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "tabs"
+  ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "메일함 모드 패널 열기"
+    "default_title": "__MSG_actTitle__"
   },
   "side_panel": {
     "default_path": "sidepanel.html"
@@ -18,21 +22,32 @@
       "suggested_key": {
         "default": "Alt+Shift+M"
       },
-      "description": "위장 화면 ↔ 원래 화면 (꺼진 사이트면 켜기)"
+      "description": "__MSG_cmdToggle__"
     },
     "open-panel": {
       "suggested_key": {
         "default": "Alt+Shift+S"
       },
-      "description": "메일함 모드 패널 열기"
+      "description": "__MSG_cmdPanel__"
     }
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["content.js"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle",
       "all_frames": true
     }
-  ]
+  ],
+  "default_locale": "ko",
+  "icons": {
+    "16": "icons/16.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  }
 }

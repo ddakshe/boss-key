@@ -1,0 +1,7 @@
+{
+  "appName":  { "message": "Working…" },
+  "appDesc":  { "message": "Reformats the list you are viewing as a spreadsheet, mailbox or approval queue. One key toggles it." },
+  "cmdToggle":{ "message": "Disguised view ↔ original view" },
+  "cmdPanel": { "message": "Open the settings panel" },
+  "actTitle": { "message": "Open the Working… panel" }
+}
